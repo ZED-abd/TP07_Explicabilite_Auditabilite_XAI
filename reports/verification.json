@@ -1,0 +1,27 @@
+{
+  "modele": "fraude",
+  "alias": "production",
+  "version": "1",
+  "run_id": "8d553d60d4ad4f16b6d425afd1f8f593",
+  "classe": "RandomForestClassifier",
+  "n_estimators": 300,
+  "max_depth": 12,
+  "f1": 0.8636,
+  "f1_run": 0.8636,
+  "precision": 0.8769,
+  "recall": 0.8507,
+  "auc": 0.9884,
+  "matrice_confusion": [
+    [
+      1100,
+      16
+    ],
+    [
+      20,
+      114
+    ]
+  ],
+  "benali_proba": 0.8899,
+  "n_test": 1250,
+  "n_fraudes_test": 134
+}
