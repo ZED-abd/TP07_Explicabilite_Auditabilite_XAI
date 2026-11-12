@@ -1,0 +1,154 @@
+{
+  "lignes": [
+    {
+      "n_voisins": 500,
+      "graine": 0,
+      "montant": 0.4592598208296655,
+      "anciennete": -0.006504492246075815,
+      "freq_24h": -0.03530420765698742,
+      "nuit": 0.24415771318180324
+    },
+    {
+      "n_voisins": 500,
+      "graine": 1,
+      "montant": 0.49949414330312225,
+      "anciennete": 0.05960026027348197,
+      "freq_24h": -0.018016154190957933,
+      "nuit": 0.24475713419447556
+    },
+    {
+      "n_voisins": 500,
+      "graine": 2,
+      "montant": 0.4058974895261417,
+      "anciennete": 0.00210539413513215,
+      "freq_24h": -0.020917451834374014,
+      "nuit": 0.20760212197306824
+    },
+    {
+      "n_voisins": 500,
+      "graine": 3,
+      "montant": 0.3837199157771027,
+      "anciennete": 0.014664003568791491,
+      "freq_24h": -0.027761240125496196,
+      "nuit": 0.1922753277848628
+    },
+    {
+      "n_voisins": 500,
+      "graine": 4,
+      "montant": 0.4791152169706893,
+      "anciennete": -0.005021458312214334,
+      "freq_24h": -0.035351798121302826,
+      "nuit": 0.1889090928449144
+    },
+    {
+      "n_voisins": 2000,
+      "graine": 0,
+      "montant": 0.4834110011006077,
+      "anciennete": 0.02624960926322442,
+      "freq_24h": 0.0009149068335997499,
+      "nuit": 0.18207047999420792
+    },
+    {
+      "n_voisins": 2000,
+      "graine": 1,
+      "montant": 0.4291677494157898,
+      "anciennete": 0.032335796578773175,
+      "freq_24h": -0.03721343569485156,
+      "nuit": 0.23562522091053698
+    },
+    {
+      "n_voisins": 2000,
+      "graine": 2,
+      "montant": 0.43999255932142617,
+      "anciennete": 0.024622441928956164,
+      "freq_24h": 0.012189982573445527,
+      "nuit": 0.1802648729648576
+    },
+    {
+      "n_voisins": 2000,
+      "graine": 3,
+      "montant": 0.455366442294297,
+      "anciennete": 0.020056962174360038,
+      "freq_24h": -0.015690843137723468,
+      "nuit": 0.2052558957249363
+    },
+    {
+      "n_voisins": 2000,
+      "graine": 4,
+      "montant": 0.4552457995747381,
+      "anciennete": 0.034295610367093235,
+      "freq_24h": -0.0026237633297575775,
+      "nuit": 0.22811846111644962
+    }
+  ],
+  "statistiques": {
+    "500": {
+      "montant": {
+        "moyenne": 0.4455,
+        "ecart_type": 0.0439,
+        "min": 0.3837,
+        "max": 0.4995,
+        "changements_de_signe": 0,
+        "signe_stable": true
+      },
+      "anciennete": {
+        "moyenne": 0.013,
+        "ecart_type": 0.0245,
+        "min": -0.0065,
+        "max": 0.0596,
+        "changements_de_signe": 2,
+        "signe_stable": false
+      },
+      "freq_24h": {
+        "moyenne": -0.0275,
+        "ecart_type": 0.0072,
+        "min": -0.0354,
+        "max": -0.018,
+        "changements_de_signe": 0,
+        "signe_stable": true
+      },
+      "nuit": {
+        "moyenne": 0.2155,
+        "ecart_type": 0.0244,
+        "min": 0.1889,
+        "max": 0.2448,
+        "changements_de_signe": 0,
+        "signe_stable": true
+      }
+    },
+    "2000": {
+      "montant": {
+        "moyenne": 0.4526,
+        "ecart_type": 0.0183,
+        "min": 0.4292,
+        "max": 0.4834,
+        "changements_de_signe": 0,
+        "signe_stable": true
+      },
+      "anciennete": {
+        "moyenne": 0.0275,
+        "ecart_type": 0.0052,
+        "min": 0.0201,
+        "max": 0.0343,
+        "changements_de_signe": 0,
+        "signe_stable": true
+      },
+      "freq_24h": {
+        "moyenne": -0.0085,
+        "ecart_type": 0.0169,
+        "min": -0.0372,
+        "max": 0.0122,
+        "changements_de_signe": 3,
+        "signe_stable": false
+      },
+      "nuit": {
+        "moyenne": 0.2063,
+        "ecart_type": 0.0228,
+        "min": 0.1803,
+        "max": 0.2356,
+        "changements_de_signe": 0,
+        "signe_stable": true
+      }
+    }
+  }
+}

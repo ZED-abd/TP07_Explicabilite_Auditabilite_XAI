@@ -1,0 +1,32 @@
+{
+  "shap": {
+    "montant": 0.3555,
+    "anciennete": 0.0798,
+    "freq_24h": -0.0284,
+    "nuit": 0.3677
+  },
+  "lime_2000_graine0": {
+    "montant": 0.4834,
+    "anciennete": 0.0262,
+    "freq_24h": 0.0009,
+    "nuit": 0.1821
+  },
+  "meme_signe": {
+    "montant": true,
+    "anciennete": true,
+    "freq_24h": false,
+    "nuit": true
+  },
+  "rang_shap": [
+    "nuit",
+    "montant",
+    "anciennete",
+    "freq_24h"
+  ],
+  "rang_lime": [
+    "montant",
+    "nuit",
+    "anciennete",
+    "freq_24h"
+  ]
+}
