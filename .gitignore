@@ -1,0 +1,24 @@
+# Environnement virtuel et caches Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Donnees locales (reproductibles ; copiees depuis le TP2)
+data/
+
+# Artefacts locaux MLflow (le registre du TP2 reste dans tp2-mlflow)
+mlruns/
+mlflow.db
+mlartifacts/
+
+# Secrets et preferences locales
+.env
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Capture de test de l'outil de rendu
+captures/test_mlflow.png
