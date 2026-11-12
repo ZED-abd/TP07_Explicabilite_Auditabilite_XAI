@@ -1,0 +1,42 @@
+{
+  "benali": {
+    "transaction": {
+      "montant": 1800.0,
+      "anciennete": 30.0,
+      "freq_24h": 4.0,
+      "nuit": 1.0
+    },
+    "valeur_de_base": 0.1153,
+    "contributions": {
+      "montant": 0.3555,
+      "anciennete": 0.0798,
+      "freq_24h": -0.0284,
+      "nuit": 0.3677
+    },
+    "somme_contributions": 0.7746,
+    "base_plus_somme": 0.8899,
+    "prediction": 0.8899,
+    "ecart_absolu": 3.297362383136715e-14,
+    "index_test": null
+  },
+  "test_3194": {
+    "transaction": {
+      "montant": 8806.06,
+      "anciennete": 14.0,
+      "freq_24h": 7.0,
+      "nuit": 0.0
+    },
+    "valeur_de_base": 0.1153,
+    "contributions": {
+      "montant": 0.6568,
+      "anciennete": 0.1459,
+      "freq_24h": 0.1131,
+      "nuit": -0.0316
+    },
+    "somme_contributions": 0.8841,
+    "base_plus_somme": 0.9995,
+    "prediction": 0.9995,
+    "ecart_absolu": 7.771561172376096e-16,
+    "index_test": 3194
+  }
+}
