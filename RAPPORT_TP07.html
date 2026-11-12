@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Rapport TP07 — Explicabilité et auditabilité</title>
+<style>
+  @page { size: A4; margin: 20mm; }
+  body { font-family: "Segoe UI", Arial, sans-serif; font-size: 10.5pt; line-height: 1.45; color: #222; }
+  h1 { font-size: 17pt; margin-top: 0; border-bottom: 2px solid #2c5aa0; padding-bottom: 4px; }
+  h2 { font-size: 13pt; color: #2c5aa0; margin-top: 16px; }
+  h3 { font-size: 11.5pt; color: #444; margin-top: 12px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 9.5pt; }
+  th, td { border: 1px solid #bbb; padding: 4px 6px; }
+  th { background: #eef2f8; }
+  img { max-width: 100%; height: auto; margin: 8px 0; border: 1px solid #ddd; }
+  pre, code { font-family: "Consolas", monospace; font-size: 9pt; }
+  pre { background: #f6f6f6; border: 1px solid #ddd; padding: 8px; overflow-x: auto; white-space: pre-wrap; }
+  blockquote { border-left: 3px solid #2c5aa0; margin: 8px 0; padding: 4px 10px; background: #f0f4fa; }
+  ul, ol { margin: 6px 0 6px 20px; }
+  hr { border: none; border-top: 1px solid #ccc; }
+</style>
+</head>
+<body>
+<h1 id="rapport-tp07-explicabilite-et-auditabilite-du-modele-de-fraude">Rapport TP07 — Explicabilité et auditabilité du modèle de fraude</h1>
+<p><strong>Étudiant :</strong> Zakaria Abdelbaki<br />
+<strong>Filière :</strong> 5IASD — Groupe AI_G6 — EMSI<br />
+<strong>Cours :</strong> Déploiement d'IA (2026-2027)<br />
+<strong>Date :</strong> 12 novembre 2026<br />
+<strong>Projet :</strong> <code>tp7-xai</code><br />
+<strong>Modèle expliqué :</strong> <code>fraude</code>, version 1, alias <code>production</code></p>
+<hr />
+<h2 id="1-introduction">1. Introduction</h2>
+<p>Ce TP prolonge le TP2 : le modèle de détection de fraude est déjà entraîné et servi par le registre MLflow, mais il reste une boîte noire. L'objectif est de l'expliquer globalement (quelles variables comptent), localement (pourquoi Mme Benali est signalée), de comparer SHAP et LIME, de mesurer le coût d'un modèle intrinsèquement interprétable, puis de rendre toute la chaîne auditable : données, run d'entraînement, version du modèle, explications et Model Card.</p>
+<p>Le fil conducteur est celui du cours : <strong>données → modèle → explications → documentation et audit</strong>. Une explication n'a de valeur d'audit que si l'on sait à quel modèle, à quelle version et à quelles données elle se rapporte.</p>
+<hr />
+<h2 id="2-environnement-et-adaptation-du-registre-tp2">2. Environnement et adaptation du registre TP2</h2>
+<h3 id="21-versions-utilisees">2.1 Versions utilisées</h3>
+<table>
+<thead>
+<tr>
+<th>Composant</th>
+<th>Version</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python</td>
+<td>3.13.3</td>
+</tr>
+<tr>
+<td>MLflow</td>
+<td>3.17.0</td>
+</tr>
+<tr>
+<td>scikit-learn</td>
+<td>1.9.1</td>
+</tr>
+<tr>
+<td>pandas</td>
+<td>3.0.6</td>
+</tr>
+<tr>
+<td>numpy</td>
+<td>2.5.3</td>
+</tr>
+<tr>
+<td>scipy</td>
+<td>1.18.1</td>
+</tr>
+<tr>
+<td>skops</td>
+<td>0.16.0</td>
+</tr>
+<tr>
+<td>SHAP</td>
+<td>0.54.1</td>
+</tr>
+<tr>
+<td>LIME</td>
+<td>0.2.0.1</td>
+</tr>
+<tr>
+<td>matplotlib</td>
+<td>3.11.2</td>
+</tr>
+</tbody>
+</table>
+<p>Les versions du modèle ont été lues dans <code>requirements_modele.txt</code>, lui-même extrait avec <code>mlflow.pyfunc.get_model_dependencies('models:/fraude@production')</code>, conformément au sujet. Le fichier contient :</p>
+<pre><code class="language-text">mlflow==3.17.0
+numpy==2.5.3
+pandas==3.0.6
+scikit-learn==1.9.1
+scipy==1.18.1
+skops==0.16.0
+</code></pre>
+<h3 id="22-registre-trouve-et-adaptation-documentee">2.2 Registre trouvé et adaptation documentée</h3>
+<p>Le registre du TP2 a bien été retrouvé sur le poste :</p>
+<pre><code class="language-text">C:\Users\zakar\Downloads\mlops-workspace\tp2-mlflow\mlflow.db
+C:\Users\zakar\Downloads\mlops-workspace\tp2-mlflow\mlartifacts\
+C:\Users\zakar\Downloads\mlops-workspace\tp2-mlflow\data\transactions.csv
+</code></pre>
+<p>Il n'a <strong>pas</strong> été reconstruit avec l'Annexe A. En revanche, le modèle TP2 local n'était pas enregistré sous le nom <code>fraude</code> : il s'appelait <strong><code>fraude-tp2</code></strong>, version 2, sans alias. Ses caractéristiques sont :</p>
+<ul>
+<li><code>RandomForestClassifier</code> ;</li>
+<li><strong>300 arbres</strong>, profondeur maximale <strong>12</strong>, <code>random_state=42</code> ;</li>
+<li>run d'origine : <code>8d553d60d4ad4f16b6d425afd1f8f593</code> ;</li>
+<li>F1 enregistré : <strong>0,8636</strong>.</li>
+</ul>
+<p>Pour respecter le nom et l'alias demandés par le sujet sans réentraîner ni remplacer le travail du TP2, le script <code>src/preparer_modele_fraude.py</code> a enregistré <strong>le même modèle</strong> (même source, même run) sous le nom <code>fraude</code>, version 1, puis a posé l'alias <code>production</code>. Cette adaptation est volontairement visible dans la Model Card et dans le rapport.</p>
+<blockquote>
+<p><strong>Conséquence importante :</strong> les valeurs de référence du PDF (forêt 500/16, F1 0,8669, P(Mme Benali)=0,924, transaction de test n° 668) ne sont pas recopiées. Les résultats ci-dessous sont ceux de la version réellement servie dans le registre local : forêt 300/12, F1 0,8636, P(Mme Benali)=0,8899, transaction la plus suspecte n° 3194. Le sujet prévoit explicitement ce cas : « Si l'alias production pointe sur une autre version dans votre registre, vos chiffres seront ceux de cette version : relevez-les, ils serviront de référence. »</p>
+</blockquote>
+<h3 id="23-lancement-du-serveur-mlflow">2.3 Lancement du serveur MLflow</h3>
+<p>Le serveur du TP2 est lancé dans un premier terminal PowerShell :</p>
+<pre><code class="language-powershell">cd C:\Users\zakar\Downloads\mlops-workspace\tp2-mlflow
+.venv\Scripts\Activate.ps1
+mlflow server --host 127.0.0.1 --port 5000 `
+  --backend-store-uri sqlite:///mlflow.db `
+  --default-artifact-root ./mlartifacts
+</code></pre>
+<p>Le travail TP07 se fait dans un second terminal, depuis <code>tp7-xai</code>. La variable <code>PYTHONUTF8=1</code> évite l'erreur d'encodage cp1252 provoquée par l'emoji affiché par MLflow 3 en fin de run :</p>
+<pre><code class="language-powershell">cd tp7-xai
+.venv\Scripts\Activate.ps1
+$env:PYTHONUTF8 = &quot;1&quot;
+</code></pre>
+<hr />
+<h2 id="3-activite-1-environnement-et-chargement-du-modele">3. Activité 1 — Environnement et chargement du modèle</h2>
+<h3 id="31-ce-qui-a-ete-realise">3.1 Ce qui a été réalisé</h3>
+<ul>
+<li>Création du projet <code>tp7-xai</code>, de l'environnement <code>.venv</code> et des dossiers <code>data/</code>, <code>src/</code>, <code>reports/</code>.</li>
+<li>Copie de <code>transactions.csv</code> depuis le TP2.</li>
+<li>Extraction de <code>requirements_modele.txt</code> depuis le modèle MLflow.</li>
+<li>Implémentation de <code>src/xai_commun.py</code> : chargement par <code>models:/fraude@production</code>, découpage <code>test_size=0.25</code>, <code>random_state=42</code>, définition de la transaction de Mme Benali.</li>
+<li>Implémentation et exécution de <code>src/verifier_modele.py</code>.</li>
+</ul>
+<h3 id="32-sortie-reelle-de-srcverifier_modelepy">3.2 Sortie réelle de <code>src/verifier_modele.py</code></h3>
+<pre><code class="language-text">modele     : fraude version 1 | run 8d553d60
+classe     : RandomForestClassifier | {'n_estimators': '300', 'max_depth': '12'}
+F1         : 0.8636 | F1 enregistre dans le run : 0.8636
+precision  : 0.8769 | rappel : 0.8507 | AUC : 0.9884
+matrice    : [[1100, 16], [20, 114]]
+Mme Benali : P(fraude) = 0.8899
+verification ecrite dans reports/verification.json
+</code></pre>
+<h3 id="33-lecture-des-resultats">3.3 Lecture des résultats</h3>
+<ul>
+<li>Le modèle chargé est bien un <code>RandomForestClassifier</code> de <strong>300 arbres</strong> et profondeur <strong>12</strong>.</li>
+<li>Le F1 recalculé sur le jeu de test (0,8636) est identique au F1 enregistré dans le run : le découpage et les données sont cohérents.</li>
+<li>La matrice de confusion contient <strong>16 faux positifs</strong> et <strong>20 faux négatifs</strong> : le modèle détecte 114 fraudes sur 134, mais laisse passer 20 fraudes et bloque 16 transactions normales.</li>
+<li>Mme Benali obtient une probabilité de fraude de <strong>0,8899</strong>, soit environ 89 %.</li>
+<li>L'AUC de 0,9884 indique une très bonne séparation globale, mais l'AUC ne dit rien sur le seuil de décision ni sur les cas individuels.</li>
+</ul>
+<h3 id="34-capture-1">3.4 Capture 1</h3>
+<p><strong>Capture 1a — sortie terminal réelle</strong> : voir le bloc de code ci-dessus (copie fidèle de l'exécution).</p>
+<p><strong>Capture 1b — onglet Model Registry de MLflow</strong> : la version <code>fraude</code> v1, l'alias <code>production</code>, la provenance <code>fraude-tp2</code> v2 et le début de la Model Card.</p>
+<p><img alt="Capture 1 — registre MLflow, version fraude v1 et alias production" src="captures/capture1_registre_modele.png" /></p>
+<hr />
+<h2 id="4-activite-2-explicabilite-globale">4. Activité 2 — Explicabilité globale</h2>
+<h3 id="41-importance-mdi-et-importance-par-permutation">4.1 Importance MDI et importance par permutation</h3>
+<p>Le script <code>src/xai_importance.py</code> calcule :</p>
+<ul>
+<li>la <strong>MDI</strong> (<code>feature_importances_</code>), calculée par la forêt sur les données d'entraînement ;</li>
+<li>l'<strong>importance par permutation</strong> sur le jeu de test, avec 10 répétitions et <code>random_state=0</code> : on mélange une colonne à la fois et on mesure la perte de F1.</li>
+</ul>
+<p>Tableau réel obtenu (<code>reports/importance.json</code>) :</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th style="text-align: right;">MDI (forêt)</th>
+<th style="text-align: right;">Permutation</th>
+<th style="text-align: right;">Écart-type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>montant</td>
+<td style="text-align: right;">0,480</td>
+<td style="text-align: right;">0,591</td>
+<td style="text-align: right;">0,032</td>
+</tr>
+<tr>
+<td>freq_24h</td>
+<td style="text-align: right;">0,191</td>
+<td style="text-align: right;">0,265</td>
+<td style="text-align: right;">0,022</td>
+</tr>
+<tr>
+<td>anciennete</td>
+<td style="text-align: right;">0,236</td>
+<td style="text-align: right;">0,263</td>
+<td style="text-align: right;">0,029</td>
+</tr>
+<tr>
+<td>nuit</td>
+<td style="text-align: right;">0,093</td>
+<td style="text-align: right;">0,193</td>
+<td style="text-align: right;">0,016</td>
+</tr>
+</tbody>
+</table>
+<p>Le classement par permutation est : <strong>montant (0,591) &gt; freq_24h (0,265) &gt; anciennete (0,263) &gt; nuit (0,193)</strong>. Le classement MDI est : <strong>montant (0,480) &gt; anciennete (0,236) &gt; freq_24h (0,191) &gt; nuit (0,093)</strong>.</p>
+<h3 id="42-shap-global">4.2 SHAP global</h3>
+<p>Le script <code>src/xai_global.py</code> utilise <code>shap.TreeExplainer</code>, exact pour les forêts, sur un échantillon de <strong>400 transactions de test</strong> (<code>random_state=0</code>). La sortie SHAP a trois dimensions <code>(transaction, variable, classe)</code> ; on garde la classe <strong>1 = fraude</strong>.</p>
+<p>Valeur de base réelle : <strong>0,1153</strong> (probabilité moyenne de fraude prédite par le modèle sur l'échantillon).</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th style="text-align: right;">Importance SHAP moyenne |valeur|</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>montant</td>
+<td style="text-align: right;">0,1155</td>
+</tr>
+<tr>
+<td>anciennete</td>
+<td style="text-align: right;">0,0578</td>
+</tr>
+<tr>
+<td>nuit</td>
+<td style="text-align: right;">0,0572</td>
+</tr>
+<tr>
+<td>freq_24h</td>
+<td style="text-align: right;">0,0555</td>
+</tr>
+</tbody>
+</table>
+<h3 id="43-lecture-et-differences-entre-les-trois-methodes">4.3 Lecture et différences entre les trois méthodes</h3>
+<ul>
+<li><strong>Le montant domine</strong> les trois méthodes. C'est la variable la plus utilisée par la forêt (MDI), celle dont le mélange fait le plus chuter le F1 (permutation) et celle dont la contribution absolue moyenne est la plus forte (SHAP).</li>
+<li><strong>La MDI et la permutation ne donnent pas exactement le même classement.</strong> La MDI place <code>anciennete</code> devant <code>freq_24h</code>, la permutation fait l'inverse. L'écart permutation entre <code>freq_24h</code> (0,265) et <code>anciennete</code> (0,263) vaut 0,002, très inférieur aux écarts-types (0,022 et 0,029) : cet ordre n'est pas robuste. Il ne faut donc pas surinterpréter la deuxième place.</li>
+<li><strong>Le cas de <code>nuit</code> est le plus instructif</strong> : MDI = 0,093, permutation = 0,193. La MDI mesure la baisse d'impureté <strong>sur l'entraînement</strong> ; elle favorise les variables qui coupent souvent et haut dans les arbres. <code>nuit</code> est binaire et utilisée dans moins de splits, donc sa MDI est faible. La permutation mesure la <strong>dépendance du F1 de test</strong> à la colonne : mélanger <code>nuit</code> détruit un signal fort (paiement de nuit), ce qui fait perdre 0,193 de F1 en moyenne. La permutation est donc plus proche de l'usage réel, mais elle dépend du jeu de test et des corrélations entre variables.</li>
+<li><strong>SHAP</strong> apporte en plus le <strong>sens</strong> et la <strong>forme</strong> de l'effet, ce que la permutation ne donne pas.</li>
+</ul>
+<h3 id="44-capture-2">4.4 Capture 2</h3>
+<p><strong>Capture 2a — tableau de permutation</strong> (graphique réel <code>reports/permutation.png</code>) :</p>
+<p><img alt="Capture 2a — importance par permutation" src="captures/capture2_permutation.png" /></p>
+<p><strong>Capture 2b — beeswarm SHAP global</strong> (<code>reports/shap_global.png</code>) :</p>
+<p><img alt="Capture 2b — beeswarm SHAP global" src="captures/capture2_shap_global.png" /></p>
+<p>Le graphique <code>reports/shap_montant.png</code> montre la contribution SHAP du montant en fonction du montant, colorée par <code>nuit</code> : la contribution devient positive à partir d'environ <strong>1 000 MAD</strong>, puis augmente fortement avec le montant.</p>
+<hr />
+<h2 id="5-activite-3-explicabilite-locale-shap">5. Activité 3 — Explicabilité locale SHAP</h2>
+<h3 id="51-transaction-de-mme-benali">5.1 Transaction de Mme Benali</h3>
+<p>Transaction : <code>montant = 1 800 MAD</code>, <code>anciennete = 30 mois</code>, <code>freq_24h = 4</code>, <code>nuit = 1</code>.</p>
+<p>Sortie réelle de <code>src/xai_local.py</code> :</p>
+<pre><code class="language-text">--- benali : {'montant': 1800.0, 'anciennete': 30.0, 'freq_24h': 4.0, 'nuit': 1.0}
+valeur de base : 0.1153
+  nuit        +0.3677
+  montant     +0.3555
+  anciennete  +0.0798
+  freq_24h    -0.0284
+base + somme   : 0.8899 | prediction : 0.8899 | ecart : 3.30e-14
+</code></pre>
+<h3 id="52-transaction-de-test-la-plus-suspecte">5.2 Transaction de test la plus suspecte</h3>
+<p>La transaction de test la plus suspecte de notre modèle est l'index <strong>3194</strong> (et non 668, qui correspond à la forêt 500/16 de référence) :</p>
+<pre><code class="language-text">--- test_3194 : {'montant': 8806.06, 'anciennete': 14.0, 'freq_24h': 7.0, 'nuit': 0.0}
+valeur de base : 0.1153
+  montant     +0.6568
+  anciennete  +0.1459
+  freq_24h    +0.1131
+  nuit        -0.0316
+base + somme   : 0.9995 | prediction : 0.9995 | ecart : 7.77e-16
+</code></pre>
+<h3 id="53-verification-de-la-propriete-defficacite">5.3 Vérification de la propriété d'efficacité</h3>
+<p>Pour Mme Benali :</p>
+<pre><code class="language-text">0,1153 + 0,3677 + 0,3555 + 0,0798 - 0,0284 = 0,8899
+</code></pre>
+<p>Pour la transaction 3194 :</p>
+<pre><code class="language-text">0,1153 + 0,6568 + 0,1459 + 0,1131 - 0,0316 = 0,9995
+</code></pre>
+<p>Dans les deux cas, <code>valeur de base + somme des contributions SHAP = prédiction</code>, à la précision machine près (écarts de l'ordre de 10⁻¹⁴ et 10⁻¹⁶). C'est la propriété d'efficacité des valeurs de Shapley : elle rend l'explication <strong>vérifiable numériquement</strong>, ce que LIME ne garantit pas.</p>
+<h3 id="54-phrase-destinee-a-mme-benali">5.4 Phrase destinée à Mme Benali</h3>
+<blockquote>
+<p><strong>« Madame Benali, votre paiement de 1 800 MAD a été signalé parce qu'il a été effectué de nuit et que son montant est nettement plus élevé que vos paiements habituels. Le modèle estime le risque à environ 89 %, mais un conseiller va vérifier l'opération avec vous avant toute décision. »</strong></p>
+</blockquote>
+<p>Cette phrase ne dit pas « le modèle a raison » ni « vous avez fraudé » : elle explique les deux facteurs qui ont fait monter le score et rappelle la revue humaine.</p>
+<h3 id="55-pourquoi-nuit-est-positive-pour-mme-benali-et-negative-pour-la-transaction-3194">5.5 Pourquoi <code>nuit</code> est positive pour Mme Benali et négative pour la transaction 3194</h3>
+<ul>
+<li>Pour Mme Benali, <code>nuit = 1</code> : le paiement a lieu entre 0 h et 5 h, un signal que la forêt associe à la fraude. La contribution est <strong>+0,3677</strong>.</li>
+<li>Pour la transaction 3194, <code>nuit = 0</code> : l'absence de paiement de nuit est un facteur <strong>légèrement protecteur</strong> par rapport à la valeur de base, d'où <strong>−0,0316</strong>. Cela ne veut pas dire que « la nuit protège » en général ; cela signifie que, pour cette transaction, le fait de ne pas être un paiement nocturne réduit un peu le score. Les autres contributions (montant +0,6568, anciennete +0,1459, freq_24h +0,1131) dominent largement et expliquent la prédiction finale de 0,9995.</li>
+</ul>
+<h3 id="56-capture-3">5.6 Capture 3</h3>
+<p><strong>Capture 3a — sortie terminal réelle</strong> : voir les blocs de code ci-dessus.</p>
+<p><strong>Capture 3b — waterfall SHAP de Mme Benali</strong> (<code>reports/shap_benali.png</code>) :</p>
+<p><img alt="Capture 3 — waterfall SHAP de Mme Benali" src="captures/capture3_shap_benali.png" /></p>
+<p>Le waterfall se lit de bas en haut : on part de <code>E[f(X)] = 0,115</code>, chaque barre rouge pousse vers la fraude, chaque barre bleue vers « normal », et on arrive à <code>f(x) = 0,89</code>.</p>
+<hr />
+<h2 id="6-activite-4-explicabilite-locale-lime">6. Activité 4 — Explicabilité locale LIME</h2>
+<h3 id="61-principe-et-explication-de-reference">6.1 Principe et explication de référence</h3>
+<p>LIME est <strong>agnostique</strong> : il n'utilise que <code>m.predict_proba</code>, ignore la structure de la forêt et apprend un modèle linéaire local autour de la transaction. Les seuils des règles (par exemple <code>montant &gt; 1007.36</code>) sont les quartiles des données d'entraînement ; ils sont identiques pour toutes les graines.</p>
+<p>Explication de référence (<code>n = 2000</code> voisins, graine 0) :</p>
+<pre><code class="language-text">regles : [('montant &gt; 1007.36', 0.483),
+          ('nuit &gt; 0.00', 0.182),
+          ('29.00 &lt; anciennete &lt;= 60.00', 0.026),
+          ('3.00 &lt; freq_24h &lt;= 4.00', 0.001)]
+</code></pre>
+<p>La page interactive est dans <code>reports/lime_benali.html</code> et le graphique dans <code>reports/lime_benali.png</code>.</p>
+<h3 id="62-stabilite-sur-5-graines-et-deux-tailles-de-voisinage">6.2 Stabilité sur 5 graines et deux tailles de voisinage</h3>
+<p>Tableau complet des poids LIME réellement calculés :</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Voisins</th>
+<th style="text-align: right;">Graine</th>
+<th style="text-align: right;">montant</th>
+<th style="text-align: right;">nuit</th>
+<th style="text-align: right;">anciennete</th>
+<th style="text-align: right;">freq_24h</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">500</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">+0,459</td>
+<td style="text-align: right;">+0,244</td>
+<td style="text-align: right;">−0,007</td>
+<td style="text-align: right;">−0,035</td>
+</tr>
+<tr>
+<td style="text-align: right;">500</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">+0,499</td>
+<td style="text-align: right;">+0,245</td>
+<td style="text-align: right;">+0,060</td>
+<td style="text-align: right;">−0,018</td>
+</tr>
+<tr>
+<td style="text-align: right;">500</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">+0,406</td>
+<td style="text-align: right;">+0,208</td>
+<td style="text-align: right;">+0,002</td>
+<td style="text-align: right;">−0,021</td>
+</tr>
+<tr>
+<td style="text-align: right;">500</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">+0,384</td>
+<td style="text-align: right;">+0,192</td>
+<td style="text-align: right;">+0,015</td>
+<td style="text-align: right;">−0,028</td>
+</tr>
+<tr>
+<td style="text-align: right;">500</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">+0,479</td>
+<td style="text-align: right;">+0,189</td>
+<td style="text-align: right;">−0,005</td>
+<td style="text-align: right;">−0,035</td>
+</tr>
+<tr>
+<td style="text-align: right;">2 000</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">+0,483</td>
+<td style="text-align: right;">+0,182</td>
+<td style="text-align: right;">+0,026</td>
+<td style="text-align: right;">+0,001</td>
+</tr>
+<tr>
+<td style="text-align: right;">2 000</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">+0,429</td>
+<td style="text-align: right;">+0,236</td>
+<td style="text-align: right;">+0,032</td>
+<td style="text-align: right;">−0,037</td>
+</tr>
+<tr>
+<td style="text-align: right;">2 000</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">+0,440</td>
+<td style="text-align: right;">+0,180</td>
+<td style="text-align: right;">+0,025</td>
+<td style="text-align: right;">+0,012</td>
+</tr>
+<tr>
+<td style="text-align: right;">2 000</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">+0,455</td>
+<td style="text-align: right;">+0,205</td>
+<td style="text-align: right;">+0,020</td>
+<td style="text-align: right;">−0,016</td>
+</tr>
+<tr>
+<td style="text-align: right;">2 000</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">+0,455</td>
+<td style="text-align: right;">+0,228</td>
+<td style="text-align: right;">+0,034</td>
+<td style="text-align: right;">−0,003</td>
+</tr>
+</tbody>
+</table>
+<p>Statistiques (moyenne ± écart-type, minimum–maximum) :</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Voisins</th>
+<th>Variable</th>
+<th style="text-align: right;">Moyenne ± écart-type</th>
+<th style="text-align: right;">Min–max</th>
+<th style="text-align: right;">Changements de signe</th>
+<th>Signe stable ?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">500</td>
+<td>montant</td>
+<td style="text-align: right;">+0,446 ± 0,044</td>
+<td style="text-align: right;">+0,384 à +0,499</td>
+<td style="text-align: right;">0</td>
+<td>Oui</td>
+</tr>
+<tr>
+<td style="text-align: right;">500</td>
+<td>nuit</td>
+<td style="text-align: right;">+0,216 ± 0,024</td>
+<td style="text-align: right;">+0,189 à +0,245</td>
+<td style="text-align: right;">0</td>
+<td>Oui</td>
+</tr>
+<tr>
+<td style="text-align: right;">500</td>
+<td>anciennete</td>
+<td style="text-align: right;">+0,013 ± 0,025</td>
+<td style="text-align: right;">−0,007 à +0,060</td>
+<td style="text-align: right;">2</td>
+<td><strong>Non</strong></td>
+</tr>
+<tr>
+<td style="text-align: right;">500</td>
+<td>freq_24h</td>
+<td style="text-align: right;">−0,028 ± 0,007</td>
+<td style="text-align: right;">−0,035 à −0,018</td>
+<td style="text-align: right;">0</td>
+<td>Oui (négatif)</td>
+</tr>
+<tr>
+<td style="text-align: right;">2 000</td>
+<td>montant</td>
+<td style="text-align: right;">+0,453 ± 0,018</td>
+<td style="text-align: right;">+0,429 à +0,483</td>
+<td style="text-align: right;">0</td>
+<td>Oui</td>
+</tr>
+<tr>
+<td style="text-align: right;">2 000</td>
+<td>nuit</td>
+<td style="text-align: right;">+0,206 ± 0,023</td>
+<td style="text-align: right;">+0,180 à +0,236</td>
+<td style="text-align: right;">0</td>
+<td>Oui</td>
+</tr>
+<tr>
+<td style="text-align: right;">2 000</td>
+<td>anciennete</td>
+<td style="text-align: right;">+0,028 ± 0,005</td>
+<td style="text-align: right;">+0,020 à +0,034</td>
+<td style="text-align: right;">0</td>
+<td>Oui (positif)</td>
+</tr>
+<tr>
+<td style="text-align: right;">2 000</td>
+<td>freq_24h</td>
+<td style="text-align: right;">−0,009 ± 0,017</td>
+<td style="text-align: right;">−0,037 à +0,012</td>
+<td style="text-align: right;">3</td>
+<td><strong>Non</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="63-tableau-comparatif-shap-lime-demande">6.3 Tableau comparatif SHAP / LIME demandé</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th style="text-align: right;">SHAP (activité 3)</th>
+<th style="text-align: right;">LIME, 2 000 voisins, graine 0</th>
+<th>Stable sur 5 graines ?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>montant</td>
+<td style="text-align: right;">+0,3555</td>
+<td style="text-align: right;">+0,4834</td>
+<td><strong>Oui</strong> : positif aux deux tailles (500 : +0,384 à +0,499 ; 2 000 : +0,429 à +0,483)</td>
+</tr>
+<tr>
+<td>nuit</td>
+<td style="text-align: right;">+0,3677</td>
+<td style="text-align: right;">+0,1821</td>
+<td><strong>Oui</strong> : positif aux deux tailles (500 : +0,189 à +0,245 ; 2 000 : +0,180 à +0,236)</td>
+</tr>
+<tr>
+<td>anciennete</td>
+<td style="text-align: right;">+0,0798</td>
+<td style="text-align: right;">+0,0262</td>
+<td><strong>Non à 500</strong> (2 changements de signe, −0,007 à +0,060) ; oui à 2 000 (+0,020 à +0,034), mais poids faible</td>
+</tr>
+<tr>
+<td>freq_24h</td>
+<td style="text-align: right;">−0,0284</td>
+<td style="text-align: right;">+0,0009</td>
+<td><strong>Non à 2 000</strong> (3 changements de signe, −0,037 à +0,012) ; oui négatif à 500 (−0,035 à −0,018)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="64-analyse-de-stabilite">6.4 Analyse de stabilité</h3>
+<ul>
+<li><strong><code>montant</code> et <code>nuit</code> sont les deux seules contributions réellement stables et importantes.</strong> Leur signe ne change jamais et leur amplitude reste du même ordre.</li>
+<li><strong><code>anciennete</code> est instable à 500 voisins</strong> : elle passe de −0,007 à +0,060 puis revient près de zéro. À 2 000 voisins, elle devient positive et stable, mais son poids (0,020 à 0,034) est faible devant <code>montant</code> et <code>nuit</code>. On peut donc la mentionner comme facteur secondaire, pas comme cause principale.</li>
+<li><strong><code>freq_24h</code> est instable à 2 000 voisins</strong> : +0,001, −0,037, +0,012, −0,016, −0,003. Trois changements de signe. À 500 voisins, elle est négative de façon stable, mais avec un poids très faible. Cette variable ne doit pas être présentée à une cliente comme une cause.</li>
+<li><strong>Règle avant de communiquer une explication à un client :</strong> fixer la graine et la taille du voisinage (ici 2 000), répéter l'explication sur au moins 5 graines, ne communiquer que les variables dont le <strong>signe est identique sur les 5 graines</strong> et dont la <strong>valeur absolue reste supérieure à 0,05</strong>. Dans notre cas, seuls <code>montant</code> et <code>nuit</code> passent ce filtre. Les autres facteurs peuvent être regroupés en « autres éléments pris en compte » sans les détailler.</li>
+</ul>
+<h3 id="65-capture-4">6.5 Capture 4</h3>
+<p><strong>Capture 4a — sortie terminal réelle</strong> : voir le tableau complet ci-dessus.</p>
+<p><strong>Capture 4b — page HTML interactive LIME</strong> (<code>reports/lime_benali.html</code>) :</p>
+<p><img alt="Capture 4 — page LIME interactive de Mme Benali" src="captures/capture4_lime_html.png" /></p>
+<p>La page affiche les probabilités prédites (normal 0,11 ; fraude 0,89), les règles et leurs poids, ainsi que les valeurs des quatre variables.</p>
+<hr />
+<h2 id="7-activite-5-modeles-interpretables">7. Activité 5 — Modèles interprétables</h2>
+<h3 id="71-tableau-du-compromis-performance-interpretabilite">7.1 Tableau du compromis performance / interprétabilité</h3>
+<p>Tous les modèles sont évalués sur le <strong>même jeu de test</strong> de 1 250 transactions, dont 134 fraudes.</p>
+<table>
+<thead>
+<tr>
+<th>Modèle</th>
+<th style="text-align: right;">F1</th>
+<th style="text-align: right;">Fraudes détectées</th>
+<th>Ce que l'on peut expliquer sans outil</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Forêt <code>fraude@production</code> (300 arbres, profondeur 12)</td>
+<td style="text-align: right;"><strong>0,8636</strong></td>
+<td style="text-align: right;"><strong>114 / 134</strong></td>
+<td>Rien directement : il faut SHAP ou LIME</td>
+</tr>
+<tr>
+<td>Régression logistique, montant brut</td>
+<td style="text-align: right;">0,7407</td>
+<td style="text-align: right;">90 / 134</td>
+<td>Coefficients et odds ratios, mais le montant brut est mal modélisé</td>
+</tr>
+<tr>
+<td>Régression logistique, <code>log10(montant)</code></td>
+<td style="text-align: right;">0,8593</td>
+<td style="text-align: right;">113 / 134</td>
+<td>Coefficients et odds ratios, très lisible</td>
+</tr>
+<tr>
+<td>Arbre de profondeur 2 (4 feuilles)</td>
+<td style="text-align: right;">0,2293</td>
+<td style="text-align: right;">18 / 134</td>
+<td>4 règles très courtes, mais performance très faible</td>
+</tr>
+<tr>
+<td>Arbre de profondeur 3 (8 feuilles)</td>
+<td style="text-align: right;">0,5737</td>
+<td style="text-align: right;">72 / 134</td>
+<td>8 feuilles, règles lisibles, mais 42 fraudes manquées</td>
+</tr>
+<tr>
+<td>Arbre de profondeur 6 (50 feuilles)</td>
+<td style="text-align: right;">0,7510</td>
+<td style="text-align: right;">95 / 134</td>
+<td>50 feuilles, lisible mais déjà volumineux</td>
+</tr>
+<tr>
+<td>Arbre sans limite (206 feuilles)</td>
+<td style="text-align: right;">0,7556</td>
+<td style="text-align: right;">102 / 134</td>
+<td>206 feuilles : illisible en pratique</td>
+</tr>
+</tbody>
+</table>
+<p>Précisions utiles pour la question 8 :</p>
+<ul>
+<li>Forêt : précision <strong>0,8769</strong>, rappel <strong>0,8507</strong>, matrice <code>[[1100, 16], [20, 114]]</code>.</li>
+<li>Logistique <code>log10(montant)</code> : précision <strong>0,8760</strong>, rappel <strong>0,8433</strong>, matrice <code>[[1100, 16], [21, 113]]</code>.</li>
+</ul>
+<p>La forêt et la logistique <code>log10</code> ont <strong>le même nombre de faux positifs (16)</strong> ; la forêt détecte <strong>une fraude de plus</strong> (114 contre 113) et a un faux négatif de moins (20 contre 21).</p>
+<h3 id="72-coefficients-de-la-regression-logistique">7.2 Coefficients de la régression logistique</h3>
+<p>Coefficients standardisés réels :</p>
+<pre><code class="language-text">{'anciennete': -2.58, 'freq_24h': 2.75, 'nuit': 2.23, 'log_montant': 4.93}
+</code></pre>
+<p>Interprétation :</p>
+<ul>
+<li><code>log_montant</code> a le coefficient positif le plus fort (+4,93) : plus le montant est élevé en ordre de grandeur, plus le risque augmente.</li>
+<li><code>freq_24h</code> (+2,75) et <code>nuit</code> (+2,23) augmentent le risque.</li>
+<li><code>anciennete</code> (−2,58) le diminue : les clients plus anciens sont moins risqués.</li>
+<li>Les cotes (odds ratios) calculées par le script : <strong>×0,928 par mois d'ancienneté</strong> et <strong>×4,76 par transaction supplémentaire en 24 h</strong>. Autrement dit, chaque mois d'ancienneté multiplie la cote de fraude par 0,928 (effet protecteur), et chaque transaction de plus sur 24 h la multiplie par 4,76 (effet aggravant).</li>
+</ul>
+<h3 id="73-arbre-de-profondeur-3-regles">7.3 Arbre de profondeur 3 : règles</h3>
+<p>Arbre réel (<code>reports/arbre_profondeur3.txt</code>) :</p>
+<pre><code class="language-text">|--- montant &lt;= 1505.7
+|   |--- freq_24h &lt;= 6.5
+|   |   |--- nuit &lt;= 0.5
+|   |   |   |--- class: 0
+|   |   |--- nuit &gt;  0.5
+|   |   |   |--- class: 0
+|   |--- freq_24h &gt;  6.5
+|   |   |--- montant &lt;= 371.9
+|   |   |   |--- class: 0
+|   |   |--- montant &gt;  371.9
+|   |   |   |--- class: 0
+|--- montant &gt;  1505.7
+|   |--- nuit &lt;= 0.5
+|   |   |--- anciennete &lt;= 69.5
+|   |   |   |--- class: 1
+|   |   |--- anciennete &gt;  69.5
+|   |   |   |--- class: 0
+|   |--- nuit &gt;  0.5
+|   |   |--- anciennete &lt;= 64.0
+|   |   |   |--- class: 1
+|   |   |--- anciennete &gt;  64.0
+|   |   |   |--- class: 1
+</code></pre>
+<p>Lecture simplifiée en règles « SI … ALORS fraude » :</p>
+<ul>
+<li><strong>R1 :</strong> SI <code>montant &gt; 1505,7</code> ET <code>nuit = 0</code> ET <code>anciennete &lt;= 69,5</code> ALORS fraude.</li>
+<li><strong>R2 :</strong> SI <code>montant &gt; 1505,7</code> ET <code>nuit = 1</code> ALORS fraude (quel que soit l'âge ; l'arbre sépare à 64 mois mais les deux feuilles sont fraudes).</li>
+<li><strong>R3 :</strong> SI <code>montant &lt;= 1505,7</code> ALORS normal (toutes les feuilles de cette branche sont classe 0).</li>
+<li><strong>R4 :</strong> SI <code>montant &gt; 1505,7</code> ET <code>nuit = 0</code> ET <code>anciennete &gt; 69,5</code> ALORS normal.</li>
+</ul>
+<p>On peut résumer : <strong>fraise si <code>montant &gt; 1505,7</code> ET (<code>nuit = 1</code> OU <code>anciennete &lt;= 69,5</code>)</strong>. C'est une règle courte, lisible, mais elle ne détecte que 72 fraudes sur 134.</p>
+<h3 id="74-chemin-de-mme-benali-dans-larbre-de-profondeur-3">7.4 Chemin de Mme Benali dans l'arbre de profondeur 3</h3>
+<p>Chemin réel (nœuds 0 → 8 → 12 → 13) :</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">Nœud</th>
+<th>Condition</th>
+<th style="text-align: right;">Valeur de Mme Benali</th>
+<th>Direction</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">0</td>
+<td><code>montant &lt;= 1505,68</code> ?</td>
+<td style="text-align: right;">1 800</td>
+<td>Non → droite (nœud 8)</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td><code>nuit &lt;= 0,5</code> ?</td>
+<td style="text-align: right;">1</td>
+<td>Non → droite (nœud 12)</td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td><code>anciennete &lt;= 64,0</code> ?</td>
+<td style="text-align: right;">30</td>
+<td>Oui → gauche (feuille 13)</td>
+</tr>
+<tr>
+<td style="text-align: right;">13</td>
+<td>feuille</td>
+<td style="text-align: right;">—</td>
+<td><strong>P(fraude) = 0,983</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Mme Benali est donc dans la <strong>feuille 13</strong>, avec une probabilité de fraude de <strong>0,983</strong> selon l'arbre de profondeur 3. C'est cohérent avec la forêt (0,8899) et avec SHAP (nuit et montant en tête).</p>
+<h3 id="75-compromis">7.5 Compromis</h3>
+<ul>
+<li>La forêt est la plus performante (F1 0,8636, 114 fraudes), mais elle n'est pas lisible directement.</li>
+<li>La logistique <code>log10(montant)</code> est presque aussi performante (F1 0,8593, 113 fraudes, mêmes 16 faux positifs) et <strong>intrinsèquement lisible</strong> : coefficients, odds ratios, sens des effets.</li>
+<li>L'arbre de profondeur 3 est le plus lisible, mais il perd <strong>42 fraudes</strong> (72/134) : son F1 de 0,5737 est trop faible pour un blocage automatique.</li>
+<li>L'arbre sans limite retrouve 102 fraudes mais devient illisible (206 feuilles) : il n'apporte pas le compromis recherché.</li>
+<li><strong>Conclusion du compromis :</strong> plus le modèle est lisible, plus il perd en performance ; la logistique <code>log10</code> est le meilleur compromis si l'on exige un modèle intrinsèquement explicable, la forêt + SHAP restant le choix de performance.</li>
+</ul>
+<hr />
+<h2 id="8-activite-6-tracabilite-et-auditabilite-mlflow">8. Activité 6 — Traçabilité et auditabilité MLflow</h2>
+<h3 id="81-run-dexplications">8.1 Run d'explications</h3>
+<p>Le script <code>src/journaliser.py</code> crée l'expérience <strong><code>tp7-explicabilite</code></strong> et le run <strong><code>xai-fraude-v1</code></strong>.</p>
+<ul>
+<li><strong>Run ID :</strong> <code>84c264e9b80f4930804598a458e91a6d</code></li>
+<li><strong>Statut :</strong> <code>FINISHED</code></li>
+<li><strong>Tags :</strong></li>
+<li><code>modele = fraude</code></li>
+<li><code>alias = production</code></li>
+<li><code>modele_version = 1</code></li>
+<li><code>modele_run_id = 8d553d60d4ad4f16b6d425afd1f8f593</code></li>
+<li><code>donnees = data/transactions.csv</code></li>
+<li><code>donnees_md5 = cf9f6f86c141e7df32c61715c493483f</code></li>
+<li><code>donnees_lignes = 5000</code></li>
+<li><code>donnees_fraudes = 568</code></li>
+<li><code>methodes = permutation ; SHAP TreeExplainer ; LIME</code></li>
+<li><code>environnement = python 3.13.3 ; mlflow 3.17.0 ; scikit-learn 1.9.1</code></li>
+<li><strong>Paramètres :</strong> <code>shap_echantillon = 400</code>, <code>lime_num_samples = 2000</code>, <code>lime_random_state = 0</code>, <code>permutation_n_repeats = 10</code>.</li>
+<li><strong>Métriques :</strong> F1 = 0,863636…, précision = 0,876923…, rappel = 0,850746….</li>
+</ul>
+<h3 id="82-artefacts-archives">8.2 Artefacts archivés</h3>
+<p>Le dossier <code>explications/</code> contient <strong>15 fichiers</strong> :</p>
+<pre><code class="language-text">comparaison_shap_lime.json
+importance.json
+interpretables.json
+lime_benali.html
+lime_benali.png
+lime_stabilite.json
+manifeste.json
+permutation.png
+shap_benali.png
+shap_global.png
+shap_importance.json
+shap_local.json
+shap_montant.png
+shap_test_3194.png
+verification.json
+</code></pre>
+<p>Le run contient aussi <code>MODEL_CARD.md</code> et <code>requirements_modele.txt</code> à la racine de ses artefacts.</p>
+<h3 id="83-lien-avec-la-version-du-modele">8.3 Lien avec la version du modèle</h3>
+<p>Les tags posés sur la version <code>fraude</code> v1 sont :</p>
+<table>
+<thead>
+<tr>
+<th>Tag</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>explications_run</code></td>
+<td><code>84c264e9b80f4930804598a458e91a6d</code></td>
+</tr>
+<tr>
+<td><code>donnees_md5</code></td>
+<td><code>cf9f6f86c141e7df32c61715c493483f</code></td>
+</tr>
+<tr>
+<td><code>model_card</code></td>
+<td><code>MODEL_CARD.md, run 84c264e9</code></td>
+</tr>
+<tr>
+<td><code>model_card_run</code></td>
+<td><code>84c264e9b80f4930804598a458e91a6d</code></td>
+</tr>
+</tbody>
+</table>
+<p>Ainsi, un auditeur qui part de la version du modèle trouve immédiatement le run d'explications, l'empreinte des données et la Model Card. Inversement, le run d'explications porte <code>modele_version</code> et <code>modele_run_id</code>, ce qui permet de revenir à la version exacte et au run d'entraînement.</p>
+<h3 id="84-capture-5">8.4 Capture 5</h3>
+<p><strong>Capture 5a — vue d'ensemble du run <code>xai-fraude-v1</code></strong> (métriques, paramètres, tags) :</p>
+<p><img alt="Capture 5a — run xai-fraude-v1, tags et paramètres" src="captures/capture5_run_overview.png" /></p>
+<p><strong>Capture 5b — dossier <code>explications/</code> du run</strong> :</p>
+<p><img alt="Capture 5b — artefacts du run xai-fraude-v1" src="captures/capture5_run_artifacts.png" /></p>
+<hr />
+<h2 id="9-activite-7-model-card">9. Activité 7 — Model Card</h2>
+<h3 id="91-redaction">9.1 Rédaction</h3>
+<p>La Model Card complète est à la racine du projet : <code>MODEL_CARD.md</code>. Elle contient les rubriques demandées : identification et version, objectif et usage prévu, usages exclus, données, performances, méthodes d'explicabilité, comparaison avec les modèles interprétables, limites et risques, recommandations de surveillance, traçabilité.</p>
+<p>Son contenu intégral est repris en annexe A.</p>
+<h3 id="92-publication-dans-mlflow">9.2 Publication dans MLflow</h3>
+<p>Le script <code>src/publier_card.py</code> :</p>
+<ul>
+<li>rouvre le run d'explications <code>84c264e9…</code> ;</li>
+<li>y attache <code>MODEL_CARD.md</code> ;</li>
+<li>met la Model Card dans la <strong>description</strong> de la version <code>fraude</code> v1 ;</li>
+<li>pose les tags <code>model_card</code> et <code>model_card_run</code>.</li>
+</ul>
+<p>Sortie réelle :</p>
+<pre><code class="language-text">Model Card attachee a fraude v1 et au run 84c264e9
+description commence par : # Model Card — fraude (version servie par l'alias `production`)
+tag model_card : MODEL_CARD.md, run 84c264e9
+MODEL_CARD.md dans le run : True
+</code></pre>
+<h3 id="93-capture-6">9.3 Capture 6</h3>
+<p><strong>Capture 6 — page de la version <code>fraude</code> v1 : description et tags</strong> :</p>
+<p><img alt="Capture 6 — tags de la version fraude v1" src="captures/capture6_tags_modele.png" /></p>
+<p>La capture 1 montre le haut de la même page (alias <code>production</code>, provenance, début de la Model Card) ; la capture 6 montre les tags <code>donnees_md5</code>, <code>explications_run</code>, <code>model_card</code> et <code>model_card_run</code>.</p>
+<hr />
+<h2 id="10-reponses-aux-10-questions">10. Réponses aux 10 questions</h2>
+<h3 id="question-1-le-registre-et-lalias">Question 1 — Le registre et l'alias</h3>
+<p><strong>Pourquoi charger par <code>models:/fraude@production</code> plutôt que par un fichier ou un numéro de version ?</strong></p>
+<p>Parce que l'alias est un <strong>pointeur stable</strong> vers la version actuellement servie. Le code ne dépend ni d'un chemin de fichier local ni d'un numéro de version codé en dur : si la version 2 est promue en production, l'alias est déplacé et le même appel charge la nouvelle version. Cela évite les erreurs du type « on explique un modèle, mais c'est un autre qui est servi ». Le registre garantit aussi que l'on récupère l'objet scikit-learn d'origine, nécessaire à SHAP.</p>
+<p><strong>Si l'alias était déplacé vers la version 2, que deviendraient les explications de l'activité 6, et comment le saurait-on ?</strong></p>
+<p>Les explications de l'activité 6 resteraient attachées à la <strong>version 1</strong> : le run <code>84c264e9…</code> porte <code>modele_version = 1</code> et <code>modele_run_id = 8d553d60…</code>, et la version 1 porte le tag <code>explications_run = 84c264e9…</code>. La version 2 n'aurait pas ces tags. Un auditeur le verrait en comparant <code>modele_version</code> du run et le tag <code>explications_run</code> de la version. Si l'on relançait le pipeline après le déplacement de l'alias, il chargerait la version 2 et créerait un <strong>nouveau</strong> run d'explications avec <code>modele_version = 2</code> ; les deux runs seraient distincts et traçables. Les anciennes explications ne seraient pas perdues, mais elles ne s'appliqueraient plus au modèle servi : il faudrait les archiver comme « explications de la v1 » et produire celles de la v2.</p>
+<h3 id="question-2-deux-importances-globales">Question 2 — Deux importances globales</h3>
+<p><strong>La MDI et la permutation donnent-elles le même classement ?</strong></p>
+<p>Non, pas exactement. Nos résultats :</p>
+<ul>
+<li>MDI : <code>montant</code> 0,480 &gt; <code>anciennete</code> 0,236 &gt; <code>freq_24h</code> 0,191 &gt; <code>nuit</code> 0,093.</li>
+<li>Permutation : <code>montant</code> 0,591 &gt; <code>freq_24h</code> 0,265 &gt; <code>anciennete</code> 0,263 &gt; <code>nuit</code> 0,193.</li>
+</ul>
+<p>Le haut (<code>montant</code>) et le bas (<code>nuit</code>) sont les mêmes, mais <code>anciennete</code> et <code>freq_24h</code> sont inversés. L'écart permutation entre les deux (0,265 contre 0,263) est de 0,002, très inférieur aux écarts-types (0,022 et 0,029) : cet ordre n'est pas robuste.</p>
+<p><strong>Expliquez la différence observée sur <code>nuit</code> (0,093 contre 0,193) à partir de la façon dont chacune est calculée.</strong></p>
+<p>La <strong>MDI</strong> est calculée pendant l'entraînement : elle mesure la baisse moyenne d'impureté (Gini) apportée par les splits sur cette variable. Elle favorise les variables qui coupent souvent et haut dans les arbres ; <code>nuit</code> est binaire et utilisée dans moins de splits, donc sa MDI est faible (0,093). La <strong>permutation</strong> est calculée sur le jeu de test : on mélange la colonne <code>nuit</code> et on mesure la perte de F1. Mélanger <code>nuit</code> détruit un signal fort (les paiements de nuit sont surreprésentés dans les fraudes), ce qui fait perdre 0,193 de F1 en moyenne. La permutation mesure donc la <strong>dépendance du modèle à la variable pour la performance de test</strong>, pas la fréquence d'utilisation dans les arbres. C'est pourquoi <code>nuit</code> est sous-estimée par la MDI.</p>
+<h3 id="question-3-lire-le-beeswarm">Question 3 — Lire le beeswarm</h3>
+<p><strong>Dans votre graphique SHAP global, dans quel sens agit l'ancienneté ?</strong></p>
+<p>Dans le beeswarm, les points <strong>rouges</strong> (ancienneté élevée) sont à <strong>gauche</strong> de zéro (contributions négatives) et les points <strong>bleus</strong> (ancienneté faible) à <strong>droite</strong> (contributions positives). Autrement dit, <strong>plus un client est ancien, plus le modèle réduit son risque de fraude ; plus son compte est récent, plus le risque augmente</strong>. C'est cohérent avec le coefficient négatif de l'ancienneté dans la régression logistique (−2,58) et avec l'odds ratio de 0,928 par mois.</p>
+<p><strong>Qu'apporte ce graphique que la permutation ne dit pas ?</strong></p>
+<p>La permutation donne une <strong>importance scalaire</strong> (une perte moyenne de F1), sans signe ni forme. Le beeswarm montre :</p>
+<ul>
+<li>le <strong>signe</strong> de l'effet (positif ou négatif) ;</li>
+<li>la <strong>distribution</strong> des contributions, pas seulement la moyenne ;</li>
+<li>la <strong>forme</strong> de l'effet : pour <code>montant</code>, la contribution devient positive vers 1 000 MAD puis augmente ; pour <code>nuit</code>, l'effet est binaire (deux nuages) ; pour <code>anciennete</code>, l'effet est progressif ;</li>
+<li>l'<strong>hétérogénéité</strong> : deux transactions de même ancienneté peuvent avoir des contributions différentes selon les autres variables.</li>
+</ul>
+<p>La permutation répond à « quelle variable compte en moyenne ? » ; le beeswarm répond à « dans quel sens et pour quels types de transactions ? ».</p>
+<h3 id="question-4-global-et-local">Question 4 — Global et local</h3>
+<p><strong>Pour Mme Benali, <code>nuit</code> est la première cause du blocage ; dans l'importance SHAP globale, elle n'est que troisième. Est-ce une contradiction ?</strong></p>
+<p>Non. L'importance globale est la <strong>moyenne des valeurs absolues</strong> des contributions sur 400 transactions : <code>nuit</code> = 0,0572, juste derrière <code>anciennete</code> (0,0578) et loin derrière <code>montant</code> (0,1155). Cette moyenne dilue les cas où <code>nuit = 1</code>, qui sont minoritaires (environ 18 % des transactions). Localement, pour Mme Benali, <code>nuit = 1</code> et son effet est fort : <strong>+0,3677</strong>, devant <code>montant</code> (+0,3555). Une variable peut donc être globalement moyenne et localement décisive. C'est exactement la différence entre <strong>importance moyenne</strong> et <strong>contribution locale</strong>.</p>
+<p><strong>Vérifiez la propriété d'efficacité sur vos chiffres.</strong></p>
+<p>Pour Mme Benali :</p>
+<pre><code class="language-text">0,1153 (base) + 0,3677 (nuit) + 0,3555 (montant) + 0,0798 (anciennete) − 0,0284 (freq_24h)
+= 0,8899 = prédiction
+</code></pre>
+<p>L'écart numérique est de <strong>3,30 × 10⁻¹⁴</strong>. Pour la transaction 3194 :</p>
+<pre><code class="language-text">0,1153 + 0,6568 + 0,1459 + 0,1131 − 0,0316 = 0,9995 = prédiction
+</code></pre>
+<p>L'écart est de <strong>7,77 × 10⁻¹⁶</strong>. La propriété d'efficacité est donc vérifiée à la précision machine, pour les deux explications locales.</p>
+<h3 id="question-5-la-phrase-pour-la-cliente">Question 5 — La phrase pour la cliente</h3>
+<p><strong>Phrase destinée à Mme Benali :</strong></p>
+<blockquote>
+<p><strong>« Madame Benali, votre paiement de 1 800 MAD a été signalé parce qu'il a été effectué de nuit et que son montant est nettement plus élevé que vos paiements habituels. Le modèle estime le risque à environ 89 %, mais un conseiller va vérifier l'opération avec vous avant toute décision. »</strong></p>
+</blockquote>
+<p><strong>Pour la transaction 3194, <code>nuit</code> a une contribution négative : pourquoi ?</strong></p>
+<p>Parce que <code>nuit = 0</code> : la transaction n'est pas un paiement nocturne. Par rapport à la valeur de base (0,1153), l'absence de ce signal de risque <strong>réduit légèrement</strong> le score, d'où −0,0316. Ce n'est pas une contradiction avec le cas de Mme Benali : pour elle, <code>nuit = 1</code> et le signal est positif (+0,3677). La contribution SHAP est <strong>relative à la valeur de base et aux autres variables</strong> ; elle ne dit pas que « la nuit protège » dans l'absolu. Pour la transaction 3194, les contributions positives du montant (+0,6568), de l'ancienneté (+0,1459) et de la fréquence (+0,1131) dominent largement la petite contribution négative de <code>nuit</code>, et la prédiction finale est 0,9995.</p>
+<h3 id="question-6-la-stabilite-de-lime">Question 6 — La stabilité de LIME</h3>
+<p><strong>Quelles contributions restent stables sur les cinq graines, lesquelles changent de signe ?</strong></p>
+<ul>
+<li><strong>Stables et positives :</strong> <code>montant</code> (500 : +0,384 à +0,499 ; 2 000 : +0,429 à +0,483) et <code>nuit</code> (500 : +0,189 à +0,245 ; 2 000 : +0,180 à +0,236). Aucun changement de signe.</li>
+<li><strong><code>anciennete</code> :</strong> change de signe à 500 voisins (2 changements, de −0,007 à +0,060) ; devient positive et stable à 2 000 voisins (+0,020 à +0,034), mais avec un poids faible.</li>
+<li><strong><code>freq_24h</code> :</strong> stable négative à 500 voisins (−0,035 à −0,018), mais <strong>instable à 2 000</strong> (3 changements de signe, de −0,037 à +0,012), avec un poids très faible.</li>
+</ul>
+<p><strong>Quelle règle adopteriez-vous avant de communiquer une explication à un client ?</strong></p>
+<p>Je fixerais la graine et la taille du voisinage (2 000), je répéterais l'explication sur au moins 5 graines, et je ne communiquerais que les variables qui remplissent <strong>deux conditions</strong> :</p>
+<ol>
+<li>le <strong>signe est identique sur les 5 graines</strong> ;</li>
+<li>la <strong>valeur absolue reste supérieure à 0,05</strong> (seuil de matérialité).</li>
+</ol>
+<p>Dans notre cas, seuls <code>montant</code> et <code>nuit</code> passent ce filtre. <code>anciennete</code> est stable à 2 000 mais trop faible ; <code>freq_24h</code> change de signe. Je présenterais donc à Mme Benali le montant et le paiement de nuit, et je regrouperais le reste en « autres éléments pris en compte ». Je ne communiquerais jamais une valeur LIME unique sans intervalle de variation.</p>
+<h3 id="question-7-shap-ou-lime">Question 7 — SHAP ou LIME</h3>
+<p><strong>SHAP et LIME désignent-ils les mêmes causes principales pour Mme Benali ?</strong></p>
+<p>Oui pour les deux premières, mais dans un ordre différent :</p>
+<ul>
+<li>SHAP : <code>nuit</code> (+0,3677) &gt; <code>montant</code> (+0,3555) &gt; <code>anciennete</code> (+0,0798) &gt; <code>freq_24h</code> (−0,0284).</li>
+<li>LIME (2 000, graine 0) : <code>montant</code> (+0,4834) &gt; <code>nuit</code> (+0,1821) &gt; <code>anciennete</code> (+0,0262) &gt; <code>freq_24h</code> (+0,0009).</li>
+</ul>
+<p>Les deux méthodes pointent <strong>le montant et la nuit</strong> comme causes principales, avec un désaccord sur l'ordre. Elles s'accordent sur le signe de <code>montant</code>, <code>nuit</code> et <code>anciennete</code> ; elles divergent sur <code>freq_24h</code>, mais avec des valeurs très faibles (−0,0284 contre +0,0009), donc non matérielles.</p>
+<p><strong>Pourquoi ne faut-il pas comparer directement leurs nombres ?</strong></p>
+<p>Parce que les deux méthodes ne mesurent pas la même chose :</p>
+<ul>
+<li>Les valeurs SHAP sont des <strong>valeurs de Shapley</strong> : elles sont additives et vérifient <code>base + somme = prédiction</code>. Elles sont exprimées dans l'espace de la probabilité prédite (pour la classe 1) et sont <strong>exactes</strong> pour une forêt avec <code>TreeExplainer</code>.</li>
+<li>Les poids LIME sont les coefficients d'un <strong>modèle linéaire local</strong> ajusté sur des voisinages générés aléatoirement. Ils dépendent de la graine, du nombre de voisins, du noyau et de la discrétisation. Ils ne vérifient pas la propriété d'efficacité et ne s'additionnent pas à la prédiction de la même façon.</li>
+</ul>
+<p>Comparer 0,3677 (SHAP) et 0,1821 (LIME) comme s'il s'agissait de la même unité n'a donc pas de sens. On compare les <strong>signes</strong>, les <strong>classements</strong> et la <strong>stabilité</strong>, pas les amplitudes.</p>
+<p><strong>Laquelle choisir pour ce modèle, et pourquoi ?</strong></p>
+<p>Je choisirais <strong>SHAP</strong> pour l'explication officielle et l'audit, car :</p>
+<ul>
+<li>le modèle est une forêt, donc <code>TreeExplainer</code> est <strong>exact</strong> et rapide ;</li>
+<li>la propriété d'efficacité est <strong>vérifiable</strong> (base + somme = prédiction), ce qui est un avantage décisif pour un audit ;</li>
+<li>les valeurs sont <strong>stables</strong> pour un modèle et un échantillon fixés (pas de graine aléatoire dans l'explication elle-même).</li>
+</ul>
+<p>LIME reste utile comme <strong>contre-expertise</strong> et pour produire une explication pédagogique locale, mais son instabilité (changements de signe de <code>freq_24h</code> et <code>anciennete</code>) interdit de l'utiliser seul pour justifier une décision. La démarche retenue est donc : SHAP pour l'audit, LIME pour le contrôle de cohérence, et revue humaine pour la décision.</p>
+<h3 id="question-8-le-compromis">Question 8 — Le compromis</h3>
+<p><strong>La logistique avec <code>log10(montant)</code> détecte 113 fraudes sur 134, la forêt 114. Quel modèle mettriez-vous en production pour bloquer des paiements ?</strong></p>
+<p>Je mettrais la <strong>forêt</strong> en production pour le blocage, mais <strong>avec revue humaine</strong>, car :</p>
+<ul>
+<li>elle détecte <strong>114 fraudes</strong> contre 113 pour la logistique, soit <strong>une fraude de plus</strong> ;</li>
+<li>elle a <strong>le même nombre de faux positifs (16)</strong> que la logistique <code>log10</code> ;</li>
+<li>son F1 est légèrement supérieur (0,8636 contre 0,8593).</li>
+</ul>
+<p>Cependant, l'écart est <strong>très faible</strong> : une fraude sur 134, soit 0,0043 de F1. Avec seulement 134 fraudes dans le jeu de test, une seule fraude change le F1 d'environ 0,007 ; l'écart est donc <strong>dans le bruit</strong>. La logistique <code>log10</code> est presque équivalente et beaucoup plus <strong>lisible</strong> : coefficients, odds ratios, sens des effets, pas besoin de SHAP pour expliquer une décision. Si la politique de l'entreprise exige un modèle <strong>intrinsèquement explicable</strong> (par exemple pour une décision de blocage contestable), je choisirais la logistique <code>log10</code>. Si la priorité est de maximiser la détection avec une explication post-hoc, je garde la forêt avec SHAP et revue humaine. Dans les deux cas, je ne bloque pas automatiquement : les 16 faux positifs et les 20 faux négatifs de la forêt imposent une vérification humaine.</p>
+<h3 id="question-9-reconstituer-une-decision">Question 9 — Reconstituer une décision</h3>
+<p><strong>Dans six mois, Mme Benali conteste. Quels éléments enregistrés dans ce TP permettent de rejouer la décision et son explication ?</strong></p>
+<ul>
+<li>La <strong>version exacte du modèle</strong> : <code>fraude</code> v1, alias <code>production</code>, run d'origine <code>8d553d60d4ad4f16b6d425afd1f8f593</code>, artefact <code>model.skops</code> et <code>requirements_modele.txt</code> (MLflow 3.17.0, scikit-learn 1.9.1, etc.).</li>
+<li>Les <strong>données</strong> : <code>data/transactions.csv</code>, 5 000 lignes, 568 fraudes, empreinte MD5 <code>cf9f6f86c141e7df32c61715c493483f</code>, découpage <code>test_size=0.25</code>, <code>random_state=42</code>.</li>
+<li>Le <strong>run d'explications</strong> : <code>84c264e9b80f4930804598a458e91a6d</code>, avec les tags <code>modele_version</code>, <code>modele_run_id</code>, <code>donnees_md5</code>, <code>methodes</code>, les paramètres (<code>shap_echantillon=400</code>, <code>lime_num_samples=2000</code>, <code>lime_random_state=0</code>, <code>permutation_n_repeats=10</code>) et les métriques.</li>
+<li>Les <strong>artefacts</strong> : <code>verification.json</code>, <code>shap_local.json</code> (transaction de Mme Benali, valeur de base, contributions, prédiction, écart d'efficacité), <code>shap_benali.png</code>, <code>lime_benali.html</code>, <code>lime_stabilite.json</code>, <code>comparaison_shap_lime.json</code>, <code>interpretables.json</code>, <code>MODEL_CARD.md</code>.</li>
+<li>Les <strong>tags de la version</strong> : <code>explications_run</code>, <code>donnees_md5</code>, <code>model_card</code>, <code>model_card_run</code>.</li>
+<li>La <strong>transaction elle-même</strong> : <code>xai_commun.py</code> définit <code>CAS</code> avec <code>montant=1800</code>, <code>anciennete=30</code>, <code>freq_24h=4</code>, <code>nuit=1</code>, et <code>shap_local.json</code> stocke ces valeurs.</li>
+</ul>
+<p><strong>Lequel manque encore pour un audit complet ?</strong></p>
+<p>Il manque plusieurs éléments propres à une décision réelle :</p>
+<ul>
+<li>l'<strong>identifiant de transaction</strong> et l'<strong>horodatage</strong> exacts, ainsi que le journal de la décision de production (score affiché, seuil appliqué, action prise) ;</li>
+<li>le <strong>résultat de la revue humaine</strong> et la décision finale (blocage confirmé ou non) ;</li>
+<li>le <strong>seuil de décision</strong> et la politique de blocage, qui ne sont pas stockés dans la version du modèle ;</li>
+<li>la <strong>version Git / l'image de conteneur</strong> exacte des scripts d'explication et du code d'entraînement (nous avons les fichiers et les versions de bibliothèques, pas un verrou complet) ;</li>
+<li>la <strong>traçabilité DVC/Git des données</strong> et les règles de gestion des données personnelles ;</li>
+<li>les <strong>logs de surveillance</strong> après mise en production (dérive, performance réelle, incidents).</li>
+</ul>
+<p>Le TP fournit donc une excellente <strong>reproductibilité au niveau du modèle et de l'explication</strong>, mais pas encore un <strong>audit complet de la décision métier</strong>. C'est une limite importante à mentionner dans la Model Card.</p>
+<h3 id="question-10-la-model-card">Question 10 — La Model Card</h3>
+<p><strong>Usage exclu :</strong> « bloquer définitivement un compte ou un paiement sans revue humaine ».</p>
+<p><strong>Justification par un résultat du TP :</strong> la forêt produit <strong>16 faux positifs</strong> et <strong>20 faux négatifs</strong> sur 1 250 transactions de test. Un faux positif bloquerait à tort un client normal ; un faux négatif montre que le modèle laisse passer 20 fraudes. Une décision définitive sans revue humaine serait donc injustifiée. De plus, SHAP et LIME expliquent le modèle, pas la causalité : une contribution élevée n'est pas une preuve de fraude.</p>
+<p><strong>Limite :</strong> « données synthétiques et seulement 4 variables ».</p>
+<p><strong>Justification par un résultat du TP :</strong> les données sont générées par <code>donnees.py</code> (graine 7) et ne contiennent que <code>montant</code>, <code>anciennete</code>, <code>freq_24h</code>, <code>nuit</code>. Le modèle ignore l'historique client, le commerçant, le pays, le moyen de paiement et la temporalité fine. Le F1 de 0,8636 est mesuré sur ces données synthétiques ; il ne garantit pas la performance sur des transactions réelles. La Model Card le dit explicitement et recommande une validation sur données réelles avant tout déploiement.</p>
+<hr />
+<h2 id="11-validation-finale">11. Validation finale</h2>
+<h3 id="111-audit-automatique">11.1 Audit automatique</h3>
+<p>Le script <code>src/verifier_audit.py</code> vérifie la chaîne complète. Résultat réel :</p>
+<pre><code class="language-text">BILAN : 40 verifications OK, 0 echec(s)
+</code></pre>
+<p>Les vérifications couvrent :</p>
+<ul>
+<li>l'alias <code>fraude@production</code> et le run d'origine ;</li>
+<li>le statut <code>FINISHED</code> du run d'explications ;</li>
+<li>les tags <code>modele_version</code>, <code>modele_run_id</code>, <code>methodes</code>, <code>donnees_md5</code>, <code>explications_run</code>, <code>model_card</code> ;</li>
+<li>les paramètres SHAP/LIME et la métrique F1 ;</li>
+<li>l'empreinte MD5 des données, identique dans le run et sur la version du modèle ;</li>
+<li>les <strong>15 artefacts</strong> du dossier <code>explications/</code> et la présence de <code>MODEL_CARD.md</code> ;</li>
+<li>la propriété d'efficacité SHAP pour Mme Benali et pour la transaction 3194 (écarts &lt; 10⁻⁹) ;</li>
+<li>l'existence et la taille des fichiers PNG/HTML/JSON ;</li>
+<li>les 10 lignes de l'étude LIME (2 tailles × 5 graines) ;</li>
+<li>les 10 rubriques de la Model Card.</li>
+</ul>
+<p>Le rapport détaillé est dans <code>reports/audit_mlflow.json</code>.</p>
+<h3 id="112-tableau-recapitulatif-des-activites">11.2 Tableau récapitulatif des activités</h3>
+<table>
+<thead>
+<tr>
+<th>Activité</th>
+<th>État</th>
+<th>Résultats principaux</th>
+<th>Fichiers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 — Environnement et chargement</td>
+<td><strong>TERMINÉ</strong></td>
+<td><code>fraude</code> v1, alias <code>production</code>, forêt 300/12, F1 0,8636, P(Benali)=0,8899</td>
+<td><code>src/xai_commun.py</code>, <code>src/verifier_modele.py</code>, <code>reports/verification.json</code></td>
+</tr>
+<tr>
+<td>2 — Explicabilité globale</td>
+<td><strong>TERMINÉ</strong></td>
+<td>MDI et permutation ; SHAP global sur 400 transactions ; base 0,1153</td>
+<td><code>src/xai_importance.py</code>, <code>src/xai_global.py</code>, <code>reports/importance.json</code>, <code>reports/shap_global.png</code>, <code>reports/shap_montant.png</code></td>
+</tr>
+<tr>
+<td>3 — SHAP local</td>
+<td><strong>TERMINÉ</strong></td>
+<td>Benali : nuit +0,3677, montant +0,3555 ; efficacité vérifiée</td>
+<td><code>src/xai_local.py</code>, <code>reports/shap_local.json</code>, <code>reports/shap_benali.png</code></td>
+</tr>
+<tr>
+<td>4 — LIME et stabilité</td>
+<td><strong>TERMINÉ</strong></td>
+<td>500/2 000 voisins × 5 graines ; montant et nuit stables ; freq/anciennete instables</td>
+<td><code>src/xai_lime.py</code>, <code>reports/lime_benali.html</code>, <code>reports/lime_stabilite.json</code>, <code>reports/comparaison_shap_lime.json</code></td>
+</tr>
+<tr>
+<td>5 — Modèles interprétables</td>
+<td><strong>TERMINÉ</strong></td>
+<td>Forêt 0,8636 ; logistique log10 0,8593 ; arbre 3 0,5737 ; feuille 13 de Benali</td>
+<td><code>src/interpretables.py</code>, <code>reports/interpretables.json</code>, <code>reports/arbre_profondeur3.txt</code></td>
+</tr>
+<tr>
+<td>6 — Traçabilité MLflow</td>
+<td><strong>TERMINÉ</strong></td>
+<td>Run <code>84c264e9…</code>, 15 artefacts, tags et MD5</td>
+<td><code>src/journaliser.py</code>, <code>reports/run_xai.txt</code>, <code>reports/manifeste.json</code></td>
+</tr>
+<tr>
+<td>7 — Model Card</td>
+<td><strong>TERMINÉ</strong></td>
+<td>Description de <code>fraude</code> v1, tags <code>model_card</code>, <code>model_card_run</code></td>
+<td><code>MODEL_CARD.md</code>, <code>src/publier_card.py</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="113-captures-demandees">11.3 Captures demandées</h3>
+<table>
+<thead>
+<tr>
+<th>Capture</th>
+<th>Contenu</th>
+<th>Fichier(s)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Sortie de <code>verifier_modele.py</code> + onglet Model Registry avec l'alias <code>production</code></td>
+<td>bloc de code §3.2 + <code>captures/capture1_registre_modele.png</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Tableau de permutation + graphique SHAP global</td>
+<td><code>captures/capture2_permutation.png</code>, <code>captures/capture2_shap_global.png</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Sortie de <code>xai_local.py</code> + waterfall de Mme Benali</td>
+<td>bloc de code §5.1 + <code>captures/capture3_shap_benali.png</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Sortie de <code>xai_lime.py</code> (deux blocs de 5 graines) + page LIME</td>
+<td>tableau §6.2 + <code>captures/capture4_lime_html.png</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Run <code>xai-fraude-v1</code> (tags et dossier <code>explications/</code>)</td>
+<td><code>captures/capture5_run_overview.png</code>, <code>captures/capture5_run_artifacts.png</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>Page de la version du modèle (description et tags)</td>
+<td><code>captures/capture6_tags_modele.png</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Honnêteté sur les captures :</strong> les captures 1, 3 et 4 contiennent la sortie terminal <strong>réelle</strong> recopiée en texte (pas une image inventée) et une capture écran <strong>réelle</strong> de l'interface MLflow ou de la page LIME. Les captures 5 et 6 sont des captures écran réelles de MLflow, prises avec un navigateur piloté sur <code>http://127.0.0.1:5000</code>.</p>
+</blockquote>
+<h3 id="114-problemes-rencontres-et-solutions">11.4 Problèmes rencontrés et solutions</h3>
+<table>
+<thead>
+<tr>
+<th>Problème</th>
+<th>Cause</th>
+<th>Solution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Le modèle <code>fraude</code> et l'alias <code>production</code> étaient absents</td>
+<td>Le TP2 local avait enregistré <code>fraude-tp2</code> v2 sans alias</td>
+<td><code>src/preparer_modele_fraude.py</code> : même modèle, même run, réenregistré sous <code>fraude</code> v1 + alias <code>production</code>, sans réentraînement</td>
+</tr>
+<tr>
+<td><code>KeyError</code> potentiel sur <code>n_estimators</code> / <code>max_depth</code></td>
+<td>Ces paramètres sont dans le run enfant <code>entrainer</code>, pas dans le run parent</td>
+<td>Lecture des attributs du modèle (<code>m.n_estimators</code>, <code>m.max_depth</code>) en secours</td>
+</tr>
+<tr>
+<td><code>OpenBLAS error: Memory allocation failed</code></td>
+<td><code>permutation_importance</code> lancé avec <code>n_jobs=-1</code> en parallèle d'un autre script SHAP</td>
+<td>Passage à <code>n_jobs=1</code> et limitation des threads OpenBLAS</td>
+</tr>
+<tr>
+<td><code>UnicodeEncodeError: 'charmap' codec</code></td>
+<td>MLflow 3 affiche un emoji en fin de run ; la console Windows est en cp1252</td>
+<td><code>PYTHONUTF8=1</code> et reconfiguration de <code>sys.stdout</code>/<code>sys.stderr</code> en UTF-8 dans <code>xai_commun.py</code></td>
+</tr>
+<tr>
+<td>La transaction la plus suspecte est 3194, pas 668</td>
+<td>Le modèle servi est 300/12, pas la forêt 500/16 de référence</td>
+<td>Résultat réel conservé et documenté ; le principe de l'activité est inchangé</td>
+</tr>
+<tr>
+<td>Disque C: plein lors de l'installation de Playwright</td>
+<td>Caches pip et temporaires volumineux</td>
+<td>Nettoyage du cache pip ; installation de Playwright dans le venv ; navigateur Chromium existant réutilisé</td>
+</tr>
+</tbody>
+</table>
+<p>Aucun problème bloquant ne reste à ce jour. Les seules limites sont celles du TP : données synthétiques, quatre variables, modèle 300/12 au lieu de 500/16, et absence d'un journal de décision de production.</p>
+<h3 id="115-reproductibilite-et-git">11.5 Reproductibilité et Git</h3>
+<p>Le projet est versionné avec Git. Les commits significatifs sont :</p>
+<pre><code class="language-text">9f5e8ea chore: initialisation du projet et environnement TP07
+d0978a2 feat: chargement de fraude@production et verification
+4c07149 feat: explications globales permutation et SHAP
+69eaa39 feat: explications locales SHAP
+b483587 feat: explication LIME et etude de stabilite
+fa31fa7 feat: modeles interpretables et compromis performance
+8132cf9 feat: journalisation MLflow des explications
+65fb6e6 docs: model card et publication dans le registre
+</code></pre>
+<p>Le dépôt contient le code, les rapports JSON/PNG/HTML, les captures et la Model Card. Les données (<code>data/</code>), l'environnement virtuel (<code>.venv/</code>) et les artefacts MLflow locaux sont exclus par <code>.gitignore</code>, conformément au sujet.</p>
+<hr />
+<h2 id="12-conclusion">12. Conclusion</h2>
+<p>Ce TP montre que l'explicabilité n'est pas un simple graphique : c'est une <strong>chaîne de preuves</strong>. SHAP global indique que le montant domine, mais le beeswarm révèle le sens et la forme des effets ; SHAP local explique Mme Benali avec une précision numérique vérifiable ; LIME confirme les deux causes principales mais montre aussi sa propre instabilité. La comparaison avec la régression logistique <code>log10(montant)</code> montre qu'un modèle intrinsèquement lisible peut être presque aussi performant (0,8593 contre 0,8636, une fraude de moins) et beaucoup plus facile à expliquer.</p>
+<p>L'auditabilité est assurée par MLflow : version exacte du modèle, run d'entraînement, empreinte MD5 des données, run d'explications, artefacts et Model Card attachée à la version. Le tag <code>explications_run</code> relie la version du modèle à ses explications ; le tag <code>modele_version</code> relie le run à la version. La propriété d'efficacité de SHAP est vérifiée à la précision machine. Il reste à ajouter, pour un audit de production complet, le journal des décisions réelles, le seuil de blocage, la revue humaine et la surveillance de la dérive.</p>
+<p>En résumé : <strong>SHAP pour l'audit, LIME pour la contre-expertise, un modèle interprétable comme référence, et MLflow + Model Card pour la traçabilité.</strong> C'est cette combinaison, et non une méthode seule, qui rend le modèle réellement explicable et auditable.</p>
+<hr />
+<h2 id="annexe-a-contenu-integral-de-model_cardmd">Annexe A — Contenu intégral de <code>MODEL_CARD.md</code></h2>
+<pre><code class="language-markdown"># Model Card — fraude (version servie par l'alias `production`)
+
+## Modèle
+
+- **Nom et version dans le registre MLflow** : `fraude`, version **1**, alias `production`.
+- **Famille et réglages** : `RandomForestClassifier` (scikit-learn 1.9.1), **300 arbres**, profondeur maximale **12**, `random_state=42`.
+- **Run d'origine (MLflow)** : `8d553d60d4ad4f16b6d425afd1f8f593` (expérience `tp2-pipeline`). Le modèle TP2 était enregistré sous `fraude-tp2` v2 ; il a été réenregistré sous `fraude` v1 sans réentraînement, puis l'alias `production` lui a été posé.
+
+## Objectif et usage prévu
+
+Détecter automatiquement les transactions à risque de fraude pour aider un conseiller à prioriser une revue manuelle. Le modèle produit une probabilité de fraude ; il ne décide pas seul d'un blocage définitif.
+
+## Usages exclus
+
+- Bloquer définitivement un compte ou un paiement sans revue humaine.
+- Utiliser le score comme preuve de fraude ou comme décision juridique.
+- Appliquer le modèle à des populations, produits ou zones non représentés dans les données d'entraînement.
+- Utiliser les explications SHAP/LIME comme preuve de causalité.
+
+## Données
+
+- **Fichier** : `data/transactions.csv`, **5 000 transactions**, **568 fraudes (11,36 %)**, 4 variables : `montant`, `anciennete`, `freq_24h`, `nuit`.
+- **Empreinte MD5** (tag `donnees_md5`) : `cf9f6f86c141e7df32c61715c493483f`.
+- **Origine** : données **synthétiques** générées par `donnees.py` du TP2 (graine 7), avec un découpage train/test `test_size=0.25`, `random_state=42` (1 250 transactions de test).
+
+## Performances (jeu de test, 1 250 transactions)
+
+- **F1** : 0,8636 — **Précision** : 0,8769 — **Rappel** : 0,8507 — **AUC** : 0,9884.
+- **Matrice de confusion** : `[[1100, 16], [20, 114]]` (1 100 vrais négatifs, 16 faux positifs, 20 faux négatifs, 114 vrais positifs).
+- **Mme Benali** : P(fraude) = **0,8899** (transaction 1 800 MAD, 30 mois, 4 transactions/24 h, nuit).
+
+## Méthodes d'explicabilité
+
+- **Globale** : importance MDI, importance par permutation (10 répétitions, perte de F1) et SHAP `TreeExplainer` sur 400 transactions de test.
+- **Locale** : SHAP (waterfall) pour Mme Benali et pour la transaction de test la plus suspecte ; LIME avec 500 et 2 000 voisins, 5 graines.
+- **Variables les plus influentes** : `montant` (permutation 0,591 ; SHAP moyen |valeur| 0,1155), puis `freq_24h` (0,265 ; 0,0555), `anciennete` (0,263 ; 0,0578) et `nuit` (0,193 ; 0,0572). Pour Mme Benali, SHAP place `nuit` (+0,3677) puis `montant` (+0,3555) en tête ; LIME place `montant` (+0,4834) puis `nuit` (+0,1821).
+- **Limites des méthodes** : LIME varie selon la graine et le voisinage ; SHAP explique le modèle, pas la causalité.
+
+## Comparaison avec un modèle interprétable
+
+| Modèle | F1 | Fraudes détectées |
+|---|---:|---:|
+| Forêt `fraude@production` | 0,8636 | 114 / 134 |
+| Régression logistique, montant brut | 0,7407 | 90 / 134 |
+| Régression logistique, `log10(montant)` | 0,8593 | 113 / 134 |
+| Arbre profondeur 2 (4 feuilles) | 0,2293 | 18 / 134 |
+| Arbre profondeur 3 (8 feuilles) | 0,5737 | 72 / 134 |
+| Arbre profondeur 6 (50 feuilles) | 0,7510 | 95 / 134 |
+| Arbre sans limite (206 feuilles) | 0,7556 | 102 / 134 |
+
+La régression logistique avec `log10(montant)` retrouve presque la forêt (0,8593 contre 0,8636, soit 1 fraude de moins) tout en restant lisible. L'arbre de profondeur 3 est très lisible mais perd 42 fraudes.
+
+## Limites et risques connus
+
+- **Données synthétiques** : les résultats ne valent pas validation sur des transactions réelles ; les fraudes rares et les nouveaux schémas ne sont pas représentés.
+- **Peu de variables** : le modèle ignore l'historique client, le commerçant, le pays, le moyen de paiement et la temporalité fine ; une variable omise peut créer un biais.
+- **Déséquilibre** : 568 fraudes sur 5 000 ; le test ne contient que 134 fraudes, donc les écarts de F1 de l'ordre de 0,005 à 0,01 sont dans le bruit.
+- **Seuil par défaut 0,5** : il privilégie la précision ; un seuil plus bas augmenterait le rappel au prix des faux positifs.
+- **Explications non causales** : SHAP et LIME décrivent le comportement du modèle, pas la cause réelle de la fraude ; LIME peut changer de signe.
+- **Version locale** : le modèle servi est la forêt TP2 300/12 (F1 0,8636), et non la forêt 500/16 de référence (F1 0,8669) ; les identifiants de run diffèrent.
+
+## Recommandations d'utilisation et de surveillance
+
+- **Revue humaine** obligatoire avant tout blocage définitif ; le score sert à prioriser, pas à condamner.
+- **Surveiller** chaque mois : F1, précision, rappel, matrice de confusion, taux de faux positifs et faux négatifs, et dérive des distributions de `montant`, `anciennete`, `freq_24h`, `nuit`.
+- **Recalculer** l'importance SHAP globale après chaque réentraînement ou changement d'alias, et vérifier que les variables importantes restent autorisées et stables.
+- **Alerter** si le F1 chute sous le seuil de validation du TP2 (0,82) ou si le rappel baisse de plus de 5 points.
+- **Documenter** chaque version : run d'entraînement, empreinte des données, run d'explications, Model Card et décision de mise en production.
+
+## Traçabilité
+
+- **Run des explications** (expérience `tp7-explicabilite`) : `84c264e9b80f4930804598a458e91a6d`, nom `xai-fraude-v1` ; tag `explications_run` posé sur `fraude` v1.
+- **Run d'origine du modèle** : `8d553d60d4ad4f16b6d425afd1f8f593`.
+- **Données** : `data/transactions.csv`, MD5 `cf9f6f86c141e7df32c61715c493483f`.
+- **Auteurs** : Zakaria Abdelbaki — 5IASD — groupe AI_G6.
+- **Date** : 12 novembre 2026 — **Prochaine revue** : 12 février 2027.
+</code></pre>
+<hr />
+<h2 id="annexe-b-sorties-terminales-complementaires">Annexe B — Sorties terminales complémentaires</h2>
+<h3 id="b1-srcxai_importancepy">B.1 <code>src/xai_importance.py</code></h3>
+<pre><code class="language-text">            MDI (foret)  permutation  ecart-type
+montant           0.480        0.591       0.032
+freq_24h          0.191        0.265       0.022
+anciennete        0.236        0.263       0.029
+nuit              0.093        0.193       0.016
+importance ecrite dans reports/importance.json et reports/permutation.png
+</code></pre>
+<h3 id="b2-srcxai_globalpy">B.2 <code>src/xai_global.py</code></h3>
+<pre><code class="language-text">valeur de base : 0.1153
+montant       0.1155
+anciennete    0.0578
+nuit          0.0572
+freq_24h      0.0555
+graphiques ecrits
+</code></pre>
+<h3 id="b3-srcinterpretablespy">B.3 <code>src/interpretables.py</code></h3>
+<pre><code class="language-text">foret fraude@production      F1 = 0.8636 | fraudes detectees : 114 / 134
+logistique, montant brut     F1 = 0.7407 | fraudes detectees : 90 / 134
+logistique, log10(montant)   F1 = 0.8593 | fraudes detectees : 113 / 134
+coefficients standardises : {'anciennete': -2.58, 'freq_24h': 2.75, 'nuit': 2.23, 'log_montant': 4.93}
+cote x 0.928 par mois d'anciennete ; x 4.76 par transaction en 24 h
+arbre profondeur 2 (4 feuilles) F1 = 0.2293 | fraudes detectees : 18 / 134
+arbre profondeur 3 (8 feuilles) F1 = 0.5737 | fraudes detectees : 72 / 134
+arbre profondeur 6 (50 feuilles) F1 = 0.7510 | fraudes detectees : 95 / 134
+arbre profondeur None (206 feuilles) F1 = 0.7556 | fraudes detectees : 102 / 134
+Mme Benali : feuille/noeud 13 | P = 0.983
+</code></pre>
+<h3 id="b4-srcjournaliserpy">B.4 <code>src/journaliser.py</code></h3>
+<pre><code class="language-text">run 84c264e9 : explications du modele fraude v1 archivees
+md5 donnees : cf9f6f86c141e7df32c61715c493483f
+artefacts : 15
+tag explications_run : 84c264e9b80f4930804598a458e91a6d
+</code></pre>
+<h3 id="b5-srcpublier_cardpy">B.5 <code>src/publier_card.py</code></h3>
+<pre><code class="language-text">Model Card attachee a fraude v1 et au run 84c264e9
+description commence par : # Model Card — fraude (version servie par l'alias `production`)
+tag model_card : MODEL_CARD.md, run 84c264e9
+MODEL_CARD.md dans le run : True
+</code></pre>
+<h3 id="b6-srcverifier_auditpy">B.6 <code>src/verifier_audit.py</code></h3>
+<pre><code class="language-text">BILAN : 40 verifications OK, 0 echec(s)
+</code></pre>
+</body>
+</html>
