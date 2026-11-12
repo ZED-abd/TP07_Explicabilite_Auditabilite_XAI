@@ -1,0 +1,77 @@
+[
+  {
+    "fichier": "comparaison_shap_lime.json",
+    "octets": 537,
+    "sha256": "f64e1221e5c64d36ba8f4d9d34fe65631eb8e160dcd3b53b9b30d7535ae1c4d9"
+  },
+  {
+    "fichier": "importance.json",
+    "octets": 242,
+    "sha256": "4c0cbce5338a94e7e294e3d42e0037a4ca8d20f953f3cec98635a76c54badbd5"
+  },
+  {
+    "fichier": "interpretables.json",
+    "octets": 1538,
+    "sha256": "96b161b895405fd3d9a99af01343ba0984d5d0e0b77b269a2bf3219bf4cac13f"
+  },
+  {
+    "fichier": "lime_benali.html",
+    "octets": 1268842,
+    "sha256": "f5641c27ec80243b5c1cfb981d1d15f28120b37c916692d4e3e6935e70ce6ae7"
+  },
+  {
+    "fichier": "lime_benali.png",
+    "octets": 19721,
+    "sha256": "a9eb87c83975b998935a48b15e5452aaa6608a84f6bbf55b14e188352e6f5031"
+  },
+  {
+    "fichier": "lime_stabilite.json",
+    "octets": 3903,
+    "sha256": "fdc26f821ae016b29756018636c4085c3a8744a3c14ab62a1c6efbdc5fd703a8"
+  },
+  {
+    "fichier": "manifeste.json",
+    "octets": 2123,
+    "sha256": "328eb35fb86559e0aabda3b9b9fdfdcad2424390cfdcfadfb2f9afd97ac3d6d1"
+  },
+  {
+    "fichier": "permutation.png",
+    "octets": 15260,
+    "sha256": "e6e3929d540dbec1a5bc701249608e4e61683f35d4cf6e0b22262daf5de6a0da"
+  },
+  {
+    "fichier": "shap_benali.png",
+    "octets": 27752,
+    "sha256": "349c7957549ed322776528d9631302fc6c910be5cbe3b98ce52f98b1cdb0ae99"
+  },
+  {
+    "fichier": "shap_global.png",
+    "octets": 51024,
+    "sha256": "1222b5c7bd76d266ffa0c39e9af4d1fa6297054789eeb19863338e7ccaa6884d"
+  },
+  {
+    "fichier": "shap_importance.json",
+    "octets": 70,
+    "sha256": "f893189f33aa7c0cd1b252ba832d27fb3a73a22beb484e33ffb000ea6b2ad238"
+  },
+  {
+    "fichier": "shap_local.json",
+    "octets": 963,
+    "sha256": "cfc8e7f46d86964767468cc45a92ca7288b06c9638519bb55681e2c8811179e1"
+  },
+  {
+    "fichier": "shap_montant.png",
+    "octets": 51641,
+    "sha256": "f8bf4caefeb1156d92f2e9151d5eef61d3a7b3943ddb045e780bd7bfaa57960e"
+  },
+  {
+    "fichier": "shap_test_3194.png",
+    "octets": 26568,
+    "sha256": "a8fad34e5dc84df7e9125df63ad1bc1d90210991ea66a65b0243e66f29f71cce"
+  },
+  {
+    "fichier": "verification.json",
+    "octets": 482,
+    "sha256": "0dedc9a8461fd6ff7f7f1eba6954a60507e4ce63d36a480948a2f46797f74bbf"
+  }
+]
