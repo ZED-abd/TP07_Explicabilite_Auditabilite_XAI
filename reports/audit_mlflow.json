@@ -1,0 +1,162 @@
+{
+  "alias_production": {
+    "ok": true,
+    "detail": "fraude@production = v1"
+  },
+  "run_origine": {
+    "ok": true,
+    "detail": "8d553d60d4ad4f16b6d425afd1f8f593"
+  },
+  "run_xai_finished": {
+    "ok": true,
+    "detail": "FINISHED"
+  },
+  "tag_modele_version": {
+    "ok": true,
+    "detail": "1"
+  },
+  "tag_modele_run_id": {
+    "ok": true,
+    "detail": "8d553d60d4ad4f16b6d425afd1f8f593"
+  },
+  "tag_methodes": {
+    "ok": true,
+    "detail": "permutation ; SHAP TreeExplainer ; LIME"
+  },
+  "param_shap": {
+    "ok": true,
+    "detail": "400"
+  },
+  "param_lime": {
+    "ok": true,
+    "detail": "2000"
+  },
+  "metrique_f1": {
+    "ok": true,
+    "detail": "0.8636363636363636"
+  },
+  "md5_donnees": {
+    "ok": true,
+    "detail": "cf9f6f86c141e7df32c61715c493483f"
+  },
+  "md5_modele": {
+    "ok": true,
+    "detail": "cf9f6f86c141e7df32c61715c493483f"
+  },
+  "artefacts_explications": {
+    "ok": true,
+    "detail": "15 fichiers"
+  },
+  "model_card_dans_run": {
+    "ok": true,
+    "detail": "MODEL_CARD.md"
+  },
+  "tag_model_card": {
+    "ok": true,
+    "detail": "MODEL_CARD.md, run 84c264e9"
+  },
+  "description_model_card": {
+    "ok": true,
+    "detail": "# Model Card — fraude (version servie par l'alias `production`)"
+  },
+  "tag_explications_run": {
+    "ok": true,
+    "detail": "84c264e9b80f4930804598a458e91a6d"
+  },
+  "efficacite_shap_benali": {
+    "ok": true,
+    "detail": "ecart = 0.00e+00"
+  },
+  "efficacite_shap_test_3194": {
+    "ok": true,
+    "detail": "ecart = 0.00e+00"
+  },
+  "fichier_verification.json": {
+    "ok": true,
+    "detail": "482 octets"
+  },
+  "fichier_importance.json": {
+    "ok": true,
+    "detail": "242 octets"
+  },
+  "fichier_shap_importance.json": {
+    "ok": true,
+    "detail": "70 octets"
+  },
+  "fichier_shap_local.json": {
+    "ok": true,
+    "detail": "963 octets"
+  },
+  "fichier_lime_stabilite.json": {
+    "ok": true,
+    "detail": "3903 octets"
+  },
+  "fichier_comparaison_shap_lime.json": {
+    "ok": true,
+    "detail": "537 octets"
+  },
+  "fichier_interpretables.json": {
+    "ok": true,
+    "detail": "1538 octets"
+  },
+  "fichier_shap_global.png": {
+    "ok": true,
+    "detail": "51024 octets"
+  },
+  "fichier_shap_benali.png": {
+    "ok": true,
+    "detail": "27752 octets"
+  },
+  "fichier_lime_benali.html": {
+    "ok": true,
+    "detail": "1268842 octets"
+  },
+  "fichier_lime_benali.png": {
+    "ok": true,
+    "detail": "19721 octets"
+  },
+  "lime_10_explications": {
+    "ok": true,
+    "detail": "10 lignes"
+  },
+  "model_card_Modèle": {
+    "ok": true,
+    "detail": "presente"
+  },
+  "model_card_Objectif et usage prévu": {
+    "ok": true,
+    "detail": "presente"
+  },
+  "model_card_Usages exclus": {
+    "ok": true,
+    "detail": "presente"
+  },
+  "model_card_Données": {
+    "ok": true,
+    "detail": "presente"
+  },
+  "model_card_Performances": {
+    "ok": true,
+    "detail": "presente"
+  },
+  "model_card_Méthodes d'explicabilité": {
+    "ok": true,
+    "detail": "presente"
+  },
+  "model_card_Comparaison avec un modèle interprétable": {
+    "ok": true,
+    "detail": "presente"
+  },
+  "model_card_Limites et risques connus": {
+    "ok": true,
+    "detail": "presente"
+  },
+  "model_card_Recommandations d'utilisation et de surveillance": {
+    "ok": true,
+    "detail": "presente"
+  },
+  "model_card_Traçabilité": {
+    "ok": true,
+    "detail": "presente"
+  }
+}
